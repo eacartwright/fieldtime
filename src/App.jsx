@@ -65,6 +65,29 @@ export default function App() {
       setActiveId(session.id);
       setActiveStart(session.start);
     }
+
+    // Real-time subscription
+    const channel = supabase
+      .channel("tasks-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" },
+        (payload) => {
+          if (payload.eventType === "INSERT") {
+            setTasks(prev => {
+              if (prev.find(t => t.id === payload.new.id)) return prev;
+              return [...prev, payload.new];
+            });
+          } else if (payload.eventType === "UPDATE") {
+            setTasks(prev => prev.map(t =>
+              t.id === payload.new.id ? payload.new : t
+            ));
+          } else if (payload.eventType === "DELETE") {
+            setTasks(prev => prev.filter(t => t.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, []);
 
   // Tick
