@@ -1,7 +1,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "./supabase";
 
+const STORAGE_KEY = "fieldtime-tasks";
 const SESSION_KEY = "fieldtime-session";
+
+function loadTasks() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveTasks(tasks) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); } catch {}
+}
 
 function loadSession() {
   try {
@@ -33,9 +44,11 @@ function formatForCW(ms) {
   return `${decimal} hrs (${h}h ${m}m)`;
 }
 
+let idCounter = Date.now();
+function genId() { return `t-${++idCounter}`; }
+
 export default function App() {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tasks, setTasks] = useState(() => loadTasks());
   const [activeId, setActiveId] = useState(null);
   const [activeStart, setActiveStart] = useState(null);
   const [tick, setTick] = useState(0);
@@ -47,19 +60,7 @@ export default function App() {
   const inputRef = useRef(null);
   const editRef = useRef(null);
 
-  // Load tasks from Supabase on mount
   useEffect(() => {
-    async function fetchTasks() {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .order("position", { ascending: true });
-      if (!error && data) setTasks(data);
-      setLoading(false);
-    }
-    fetchTasks();
-
-    // Restore active session
     const session = loadSession();
     if (session) {
       setActiveId(session.id);
@@ -67,12 +68,13 @@ export default function App() {
     }
   }, []);
 
-  // Tick
   useEffect(() => {
     if (!activeId) return;
     const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
   }, [activeId]);
+
+  useEffect(() => { saveTasks(tasks); }, [tasks]);
 
   const getLiveElapsed = useCallback((task) => {
     if (activeId === task.id && activeStart) {
@@ -91,21 +93,14 @@ export default function App() {
     );
   }, [activeId, activeStart]);
 
-  const upsertTask = async (task) => {
-    await supabase.from("tasks").upsert(task);
-  };
-
   const startTask = (id) => {
     const now = Date.now();
     setTasks(prev => {
       const stopped = stopActive(prev);
-      const updated = stopped.map(t =>
+      return stopped.map(t =>
         t.id === id ? { ...t, status: "running" } :
         t.id === activeId ? { ...t, status: t.elapsed > 0 ? "paused" : "idle" } : t
       );
-      // Persist affected tasks
-      updated.filter(t => t.id === id || t.id === activeId).forEach(upsertTask);
-      return updated;
     });
     setActiveId(id);
     setActiveStart(now);
@@ -113,15 +108,9 @@ export default function App() {
   };
 
   const pauseTask = () => {
-    setTasks(prev => {
-      const stopped = stopActive(prev);
-      const updated = stopped.map(t =>
-        t.id === activeId ? { ...t, status: "paused" } : t
-      );
-      const affected = updated.find(t => t.id === activeId);
-      if (affected) upsertTask(affected);
-      return updated;
-    });
+    setTasks(prev => stopActive(prev).map(t =>
+      t.id === activeId ? { ...t, status: "paused" } : t
+    ));
     setActiveId(null);
     setActiveStart(null);
     saveSession(null);
@@ -131,10 +120,7 @@ export default function App() {
     const isActive = id === activeId;
     setTasks(prev => {
       const arr = isActive ? stopActive(prev) : prev;
-      const updated = arr.map(t => t.id === id ? { ...t, status: "stopped" } : t);
-      const affected = updated.find(t => t.id === id);
-      if (affected) upsertTask(affected);
-      return updated;
+      return arr.map(t => t.id === id ? { ...t, status: "stopped" } : t);
     });
     if (isActive) {
       setActiveId(null);
@@ -149,41 +135,28 @@ export default function App() {
       setActiveStart(null);
       saveSession(null);
     }
-    setTasks(prev => {
-      const updated = prev.map(t =>
-        t.id === id ? { ...t, elapsed: 0, status: "idle" } : t
-      );
-      const affected = updated.find(t => t.id === id);
-      if (affected) upsertTask(affected);
-      return updated;
-    });
+    setTasks(prev => prev.map(t =>
+      t.id === id ? { ...t, elapsed: 0, status: "idle" } : t
+    ));
   };
 
-  const deleteTask = async (id) => {
+  const deleteTask = (id) => {
     if (id === activeId) {
       setActiveId(null);
       setActiveStart(null);
       saveSession(null);
     }
     setTasks(prev => prev.filter(t => t.id !== id));
-    await supabase.from("tasks").delete().eq("id", id);
   };
 
-  const addTask = async () => {
+  const addTask = () => {
     const name = newName.trim();
     if (!name) return;
-    const task = {
-      id: `t-${Date.now()}`,
-      name,
-      elapsed: 0,
-      status: "idle",
-      created: Date.now(),
-      position: tasks.length
-    };
-    setTasks(prev => [...prev, task]);
+    setTasks(prev => [...prev, {
+      id: genId(), name, elapsed: 0, status: "idle", created: Date.now()
+    }]);
     setNewName("");
     inputRef.current?.focus();
-    await upsertTask(task);
   };
 
   const startEdit = (task) => {
@@ -192,14 +165,11 @@ export default function App() {
     setTimeout(() => editRef.current?.focus(), 50);
   };
 
-  const commitEdit = async () => {
+  const commitEdit = () => {
     const name = editingName.trim();
-    if (name) {
-      setTasks(prev => prev.map(t =>
-        t.id === editingId ? { ...t, name } : t
-      ));
-      await supabase.from("tasks").update({ name }).eq("id", editingId);
-    }
+    if (name) setTasks(prev => prev.map(t =>
+      t.id === editingId ? { ...t, name } : t
+    ));
     setEditingId(null);
   };
 
@@ -222,17 +192,6 @@ export default function App() {
   };
 
   const activeTasks = tasks.filter(t => getLiveElapsed(t) > 0);
-
-  if (loading) return (
-    <div style={{
-      minHeight: "100dvh", background: "#0f0f0f",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "'DM Mono', monospace", color: "#444",
-      fontSize: 13, letterSpacing: "0.1em"
-    }}>
-      LOADING...
-    </div>
-  );
 
   return (
     <div style={{
