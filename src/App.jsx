@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "./supabase";
+import { genId } from "./utils";
+import TaskCard from "./components/TaskCard";
 
 const SESSION_KEY = "fieldtime-session";
 
@@ -17,234 +19,204 @@ function saveSession(session) {
   } catch {}
 }
 
-function formatDuration(ms) {
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
-}
-
-function formatForCW(ms) {
-  const totalMin = Math.round(ms / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  const decimal = (h + m / 60).toFixed(2);
-  return `${decimal} hrs (${h}h ${m}m)`;
-}
-
 export default function App() {
   const [tasks, setTasks] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeId, setActiveId] = useState(null);
   const [activeStart, setActiveStart] = useState(null);
   const [tick, setTick] = useState(0);
   const [newName, setNewName] = useState("");
-  const [showExport, setShowExport] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [editingName, setEditingName] = useState("");
+  const [showArchive, setShowArchive] = useState(false);
   const inputRef = useRef(null);
-  const editRef = useRef(null);
 
-  // Load tasks from Supabase on mount
+  // Load everything on mount
   useEffect(() => {
-    async function fetchTasks() {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*")
-        .order("position", { ascending: true });
-      if (!error && data) setTasks(data);
+    async function fetchAll() {
+      const [tasksRes, sessionsRes, entriesRes] = await Promise.all([
+        supabase.from("tasks").select("*").order("position", { ascending: true }),
+        supabase.from("sessions").select("*").order("started_at", { ascending: true }),
+        supabase.from("entries").select("*").order("noted_at", { ascending: true }),
+      ]);
+      if (tasksRes.data) setTasks(tasksRes.data);
+      if (sessionsRes.data) setSessions(sessionsRes.data);
+      if (entriesRes.data) setEntries(entriesRes.data);
       setLoading(false);
     }
-    fetchTasks();
+    fetchAll();
 
-    // Restore active session
     const session = loadSession();
     if (session) {
       setActiveId(session.id);
       setActiveStart(session.start);
     }
 
-    // Real-time subscription
-    const channel = supabase
+    // Realtime subscriptions
+    const taskChannel = supabase
       .channel("tasks-sync")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" },
-        (payload) => {
-          if (payload.eventType === "INSERT") {
-            setTasks(prev => {
-              if (prev.find(t => t.id === payload.new.id)) return prev;
-              return [...prev, payload.new];
-            });
-          } else if (payload.eventType === "UPDATE") {
-            setTasks(prev => prev.map(t =>
-              t.id === payload.new.id ? payload.new : t
-            ));
-          } else if (payload.eventType === "DELETE") {
-            setTasks(prev => prev.filter(t => t.id !== payload.old.id));
-          }
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, payload => {
+        if (payload.eventType === "INSERT") {
+          setTasks(prev => prev.find(t => t.id === payload.new.id) ? prev : [...prev, payload.new]);
+        } else if (payload.eventType === "UPDATE") {
+          setTasks(prev => prev.map(t => t.id === payload.new.id ? payload.new : t));
+        } else if (payload.eventType === "DELETE") {
+          setTasks(prev => prev.filter(t => t.id !== payload.old.id));
         }
-      )
-      .subscribe();
+      })
+      .subscribe(status => console.log("tasks channel:", status));
 
-    return () => supabase.removeChannel(channel);
+    const sessionChannel = supabase
+      .channel("sessions-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "sessions" }, payload => {
+        if (payload.eventType === "INSERT") {
+          setSessions(prev => prev.find(s => s.id === payload.new.id) ? prev : [...prev, payload.new]);
+        } else if (payload.eventType === "UPDATE") {
+          setSessions(prev => prev.map(s => s.id === payload.new.id ? payload.new : s));
+        } else if (payload.eventType === "DELETE") {
+          setSessions(prev => prev.filter(s => s.id !== payload.old.id));
+        }
+      })
+      .subscribe(status => console.log("sessions channel:", status));
+
+    const entryChannel = supabase
+      .channel("entries-sync")
+      .on("postgres_changes", { event: "*", schema: "public", table: "entries" }, payload => {
+        if (payload.eventType === "INSERT") {
+          setEntries(prev => prev.find(e => e.id === payload.new.id) ? prev : [...prev, payload.new]);
+        } else if (payload.eventType === "UPDATE") {
+          setEntries(prev => prev.map(e => e.id === payload.new.id ? payload.new : e));
+        } else if (payload.eventType === "DELETE") {
+          setEntries(prev => prev.filter(e => e.id !== payload.old.id));
+        }
+      })
+      .subscribe(status => console.log("entries channel:", status));
+
+    return () => {
+      supabase.removeChannel(taskChannel);
+      supabase.removeChannel(sessionChannel);
+      supabase.removeChannel(entryChannel);
+    };
   }, []);
 
-  // Tick
+  // Tick for active timer
   useEffect(() => {
     if (!activeId) return;
     const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
   }, [activeId]);
 
-  const getLiveElapsed = useCallback((task) => {
-    if (activeId === task.id && activeStart) {
-      return task.elapsed + (Date.now() - activeStart);
+  const startTask = async (taskId) => {
+    const now = Date.now();
+
+    // End current active session if any
+    if (activeId && activeStart) {
+      const activeSession = sessions.find(s => s.task_id === activeId && s.ended_at === null);
+      if (activeSession) {
+        await supabase.from("sessions").update({ ended_at: now }).eq("id", activeSession.id);
+        setSessions(prev => prev.map(s =>
+          s.id === activeSession.id ? { ...s, ended_at: now } : s
+        ));
+      }
+      await supabase.from("tasks").update({ status: "paused" }).eq("id", activeId);
+      setTasks(prev => prev.map(t => t.id === activeId ? { ...t, status: "paused" } : t));
     }
-    return task.elapsed;
-  }, [activeId, activeStart, tick]); // eslint-disable-line
 
-  const stopActive = useCallback((tasksArr) => {
-    if (!activeId || !activeStart) return tasksArr;
-    const now = Date.now();
-    return tasksArr.map(t =>
-      t.id === activeId
-        ? { ...t, elapsed: t.elapsed + (now - activeStart) }
-        : t
-    );
-  }, [activeId, activeStart]);
+    // Start new session
+    const newSession = {
+      id: genId(),
+      task_id: taskId,
+      started_at: now,
+      ended_at: null,
+      created_at: now
+    };
+    await supabase.from("sessions").insert(newSession);
+    setSessions(prev => [...prev, newSession]);
+    await supabase.from("tasks").update({ status: "running" }).eq("id", taskId);
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: "running" } : t));
 
-  const upsertTask = async (task) => {
-    await supabase.from("tasks").upsert(task);
-  };
-
-  const startTask = (id) => {
-    const now = Date.now();
-    setTasks(prev => {
-      const stopped = stopActive(prev);
-      const updated = stopped.map(t =>
-        t.id === id ? { ...t, status: "running" } :
-        t.id === activeId ? { ...t, status: t.elapsed > 0 ? "paused" : "idle" } : t
-      );
-      // Persist affected tasks
-      updated.filter(t => t.id === id || t.id === activeId).forEach(upsertTask);
-      return updated;
-    });
-    setActiveId(id);
+    setActiveId(taskId);
     setActiveStart(now);
-    saveSession({ id, start: now });
+    saveSession({ id: taskId, start: now });
   };
 
-  const pauseTask = () => {
-    setTasks(prev => {
-      const stopped = stopActive(prev);
-      const updated = stopped.map(t =>
-        t.id === activeId ? { ...t, status: "paused" } : t
-      );
-      const affected = updated.find(t => t.id === activeId);
-      if (affected) upsertTask(affected);
-      return updated;
-    });
+  const pauseTask = async () => {
+    if (!activeId) return;
+    const now = Date.now();
+    const activeSession = sessions.find(s => s.task_id === activeId && s.ended_at === null);
+    if (activeSession) {
+      await supabase.from("sessions").update({ ended_at: now }).eq("id", activeSession.id);
+      setSessions(prev => prev.map(s =>
+        s.id === activeSession.id ? { ...s, ended_at: now } : s
+      ));
+    }
+    await supabase.from("tasks").update({ status: "paused" }).eq("id", activeId);
+    setTasks(prev => prev.map(t => t.id === activeId ? { ...t, status: "paused" } : t));
     setActiveId(null);
     setActiveStart(null);
     saveSession(null);
   };
 
-  const stopTask = (id) => {
-    const isActive = id === activeId;
-    setTasks(prev => {
-      const arr = isActive ? stopActive(prev) : prev;
-      const updated = arr.map(t => t.id === id ? { ...t, status: "stopped" } : t);
-      const affected = updated.find(t => t.id === id);
-      if (affected) upsertTask(affected);
-      return updated;
-    });
+  const stopTask = async (taskId) => {
+    const now = Date.now();
+    const isActive = taskId === activeId;
     if (isActive) {
+      const activeSession = sessions.find(s => s.task_id === taskId && s.ended_at === null);
+      if (activeSession) {
+        await supabase.from("sessions").update({ ended_at: now }).eq("id", activeSession.id);
+        setSessions(prev => prev.map(s =>
+          s.id === activeSession.id ? { ...s, ended_at: now } : s
+        ));
+      }
       setActiveId(null);
       setActiveStart(null);
       saveSession(null);
     }
+    await supabase.from("tasks").update({ status: "stopped" }).eq("id", taskId);
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: "stopped" } : t));
   };
 
-  const resetTask = (id) => {
-    if (id === activeId) {
-      setActiveId(null);
-      setActiveStart(null);
-      saveSession(null);
+  const archiveTask = async (taskId) => {
+    if (taskId === activeId) {
+      await pauseTask();
     }
-    setTasks(prev => {
-      const updated = prev.map(t =>
-        t.id === id ? { ...t, elapsed: 0, status: "idle" } : t
-      );
-      const affected = updated.find(t => t.id === id);
-      if (affected) upsertTask(affected);
-      return updated;
-    });
+    await supabase.from("tasks").update({ archived: true }).eq("id", taskId);
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, archived: true } : t));
   };
 
-  const deleteTask = async (id) => {
-    if (id === activeId) {
+  const deleteTask = async (taskId) => {
+    if (taskId === activeId) {
       setActiveId(null);
       setActiveStart(null);
       saveSession(null);
     }
-    setTasks(prev => prev.filter(t => t.id !== id));
-    await supabase.from("tasks").delete().eq("id", id);
+    await supabase.from("tasks").delete().eq("id", taskId);
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+    setSessions(prev => prev.filter(s => s.task_id !== taskId));
+    setEntries(prev => prev.filter(e => e.task_id !== taskId));
   };
 
   const addTask = async () => {
     const name = newName.trim();
     if (!name) return;
     const task = {
-      id: `t-${Date.now()}`,
+      id: genId(),
       name,
       elapsed: 0,
       status: "idle",
       created: Date.now(),
-      position: tasks.length
+      position: tasks.filter(t => !t.archived).length,
+      archived: false
     };
     setTasks(prev => [...prev, task]);
     setNewName("");
     inputRef.current?.focus();
-    await upsertTask(task);
+    await supabase.from("tasks").insert(task);
   };
 
-  const startEdit = (task) => {
-    setEditingId(task.id);
-    setEditingName(task.name);
-    setTimeout(() => editRef.current?.focus(), 50);
-  };
-
-  const commitEdit = async () => {
-    const name = editingName.trim();
-    if (name) {
-      setTasks(prev => prev.map(t =>
-        t.id === editingId ? { ...t, name } : t
-      ));
-      await supabase.from("tasks").update({ name }).eq("id", editingId);
-    }
-    setEditingId(null);
-  };
-
-  const buildExport = () => {
-    const date = new Date().toLocaleDateString("en-US", {
-      weekday: "short", month: "short", day: "numeric"
-    });
-    const lines = tasks
-      .filter(t => getLiveElapsed(t) > 0)
-      .map(t => `• ${t.name}\n  ${formatForCW(getLiveElapsed(t))}`);
-    return `Field Time Log — ${date}\n${"─".repeat(32)}\n${lines.join("\n\n")}`;
-  };
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(buildExport());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
-  };
-
-  const activeTasks = tasks.filter(t => getLiveElapsed(t) > 0);
+  const activeTasks = tasks.filter(t => !t.archived);
+  const archivedTasks = tasks.filter(t => t.archived);
+  const displayTasks = showArchive ? archivedTasks : activeTasks;
 
   if (loading) return (
     <div style={{
@@ -252,9 +224,7 @@ export default function App() {
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: "'DM Mono', monospace", color: "#444",
       fontSize: 13, letterSpacing: "0.1em"
-    }}>
-      LOADING...
-    </div>
+    }}>LOADING...</div>
   );
 
   return (
@@ -270,18 +240,19 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Barlow+Condensed:wght@400;600;700;800&display=swap');
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; padding: 0; background: #0f0f0f; }
         .btn { cursor: pointer; border: none; transition: transform 0.12s; user-select: none; }
         .btn:active { transform: scale(0.92); }
         .pulse { animation: pulse 1.8s ease-in-out infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
         .slide-in { animation: slidein 0.18s ease-out; }
         @keyframes slidein { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
-        input { outline: none; -webkit-appearance: none; }
+        input, textarea { outline: none; -webkit-appearance: none; }
       `}</style>
 
       {/* Header */}
       <div style={{
-        borderBottom: "2px solid #2f57cd",
+        borderBottom: "2px solid #c86022",
         padding: "18px 20px 14px",
         position: "sticky", top: 0,
         background: "#0f0f0f",
@@ -295,210 +266,106 @@ export default function App() {
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 26, fontWeight: 800,
             letterSpacing: "0.04em", lineHeight: 1
-          }}>FIELDTIME</div>
+          }}>FIELD TIME</div>
           <div style={{ fontSize: 10, color: "#666", marginTop: 3, letterSpacing: "0.1em" }}>
-            {activeTasks.length > 0
-              ? `${activeTasks.length} TASK${activeTasks.length > 1 ? "S" : ""} LOGGED`
-              : "NO TASKS LOGGED"}
+            {showArchive
+              ? `${archivedTasks.length} ARCHIVED TASK${archivedTasks.length !== 1 ? "S" : ""}`
+              : `${activeTasks.length} ACTIVE TASK${activeTasks.length !== 1 ? "S" : ""}`}
           </div>
         </div>
-        {activeTasks.length > 0 && (
-          <button className="btn" onClick={() => setShowExport(v => !v)} style={{
-            background: showExport ? "#2f57cd" : "transparent",
-            border: "1.5px solid #2f57cd",
-            color: showExport ? "#0f0f0f" : "#2f57cd",
+        <button
+          className="btn"
+          onClick={() => setShowArchive(v => !v)}
+          style={{
+            background: showArchive ? "#c86022" : "transparent",
+            border: "1.5px solid #c86022",
+            color: showArchive ? "#0f0f0f" : "#c86022",
             padding: "7px 14px", borderRadius: 3,
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 13, fontWeight: 700, letterSpacing: "0.08em"
-          }}>
-            {showExport ? "CLOSE" : "EXPORT"}
-          </button>
-        )}
+          }}
+        >
+          {showArchive ? "ACTIVE" : "ARCHIVE"}
+        </button>
       </div>
-
-      {/* Export panel */}
-      {showExport && (
-        <div className="slide-in" style={{
-          background: "#161616",
-          borderBottom: "1px solid #2a2a2a",
-          padding: "16px 20px"
-        }}>
-          <pre style={{
-            background: "#0a0a0a",
-            border: "1px solid #2a2a2a",
-            borderRadius: 4, padding: 14,
-            fontSize: 12, lineHeight: 1.7,
-            color: "#aaa", margin: 0,
-            whiteSpace: "pre-wrap", wordBreak: "break-word"
-          }}>{buildExport()}</pre>
-          <button className="btn" onClick={handleCopy} style={{
-            marginTop: 12, width: "100%",
-            background: copied ? "#2a5a2a" : "#2f57cd",
-            color: copied ? "#8fbc8f" : "#0f0f0f",
-            padding: 12, borderRadius: 3,
-            fontFamily: "'Barlow Condensed', sans-serif",
-            fontSize: 15, fontWeight: 700, letterSpacing: "0.1em", border: "none"
-          }}>
-            {copied ? "✓ COPIED" : "COPY FOR CONNECTWISE"}
-          </button>
-        </div>
-      )}
 
       {/* Task list */}
       <div style={{ padding: "12px 0" }}>
-        {tasks.length === 0 && (
+        {displayTasks.length === 0 && (
           <div style={{
             padding: "48px 24px", textAlign: "center",
             color: "#444", fontSize: 13, lineHeight: 1.8, letterSpacing: "0.05em"
           }}>
-            NO TASKS YET<br />
-            <span style={{ fontSize: 11 }}>ADD ONE BELOW TO START TRACKING</span>
+            {showArchive ? "NO ARCHIVED TASKS" : "NO TASKS YET"}<br />
+            <span style={{ fontSize: 11 }}>
+              {showArchive ? "ARCHIVED TASKS WILL APPEAR HERE" : "ADD ONE BELOW TO START TRACKING"}
+            </span>
           </div>
         )}
 
-        {tasks.map(task => {
-          const isRunning = activeId === task.id;
-          const elapsed = getLiveElapsed(task);
-          const isEditing = editingId === task.id;
-          const isStopped = task.status === "stopped";
-          const hasSomeTime = elapsed > 0;
-
-          return (
-            <div key={task.id} className="slide-in" style={{
-              borderBottom: "1px solid #1c1c1c",
-              padding: "14px 20px",
-              background: isRunning ? "#141008" : "transparent",
-              borderLeft: isRunning ? "3px solid #2f57cd" : "3px solid transparent"
-            }}>
-              {/* Name row */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                {isEditing ? (
-                  <input
-                    ref={editRef}
-                    value={editingName}
-                    onChange={e => setEditingName(e.target.value)}
-                    onBlur={commitEdit}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") commitEdit();
-                      if (e.key === "Escape") setEditingId(null);
-                    }}
-                    style={{
-                      flex: 1, background: "transparent", border: "none",
-                      borderBottom: "1.5px solid #2f57cd",
-                      color: "#e8e0d5", fontSize: 15, padding: "2px 0",
-                      fontFamily: "'DM Mono', monospace"
-                    }}
-                  />
-                ) : (
-                  <div
-                    onDoubleClick={() => !isStopped && startEdit(task)}
-                    style={{
-                      flex: 1, fontSize: 14,
-                      color: isStopped ? "#555" : "#ccc",
-                      letterSpacing: "0.03em", wordBreak: "break-word"
-                    }}
-                  >
-                    {task.name}
-                    {isStopped && (
-                      <span style={{ marginLeft: 8, fontSize: 10, color: "#444", letterSpacing: "0.1em" }}>
-                        DONE
-                      </span>
-                    )}
-                  </div>
-                )}
-                <button className="btn" onClick={() => deleteTask(task.id)} style={{
-                  background: "transparent", color: "#333",
-                  fontSize: 16, padding: "2px 4px", borderRadius: 3
-                }}>✕</button>
-              </div>
-
-              {/* Timer + controls */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div className={isRunning ? "pulse" : ""} style={{
-                  fontFamily: "'Barlow Condensed', sans-serif",
-                  fontSize: 32, fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  color: isRunning ? "#42e830" : hasSomeTime ? "#d7e8d5" : "#333",
-                  minWidth: 120, lineHeight: 1,
-                  fontVariantNumeric: "tabular-nums"
-                }}>
-                  {formatDuration(elapsed)}
-                </div>
-
-                <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
-                  {!isStopped && (
-                    <button className="btn" onClick={() => isRunning ? pauseTask() : startTask(task.id)} style={{
-                      width: 42, height: 42, borderRadius: 4,
-                      background: isRunning ? "#172a10" : "#2f57cd",
-                      border: isRunning ? "1.5px solid #2f57cd" : "none",
-                      color: isRunning ? "#2f57cd" : "#0f0f0f",
-                      fontSize: 18, display: "flex",
-                      alignItems: "center", justifyContent: "center"
-                    }}>
-                      {isRunning ? "⏸" : "▶"}
-                    </button>
-                  )}
-                  {!isStopped && hasSomeTime && (
-                    <button className="btn" onClick={() => stopTask(task.id)} style={{
-                      width: 42, height: 42, borderRadius: 4,
-                      background: "#1a1a1a", border: "1.5px solid #333",
-                      color: "#888", fontSize: 16, display: "flex",
-                      alignItems: "center", justifyContent: "center"
-                    }}>⏹</button>
-                  )}
-                  {hasSomeTime && (
-                    <button className="btn" onClick={() => resetTask(task.id)} style={{
-                      width: 42, height: 42, borderRadius: 4,
-                      background: "#1a1a1a", border: "1.5px solid #222",
-                      color: "#555", fontSize: 18, display: "flex",
-                      alignItems: "center", justifyContent: "center"
-                    }}>↺</button>
-                  )}
-                </div>
-              </div>
-
-              {hasSomeTime && (
-                <div style={{ marginTop: 8, fontSize: 11, color: "#555", letterSpacing: "0.08em" }}>
-                  CW: {formatForCW(elapsed)}
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {displayTasks.map(task => (
+          <TaskCard
+            key={task.id}
+            task={task}
+            sessions={sessions.filter(s => s.task_id === task.id)}
+            entries={entries.filter(e => e.task_id === task.id)}
+            isActive={activeId === task.id}
+            activeStart={activeStart}
+            tick={tick}
+            onStart={startTask}
+            onPause={pauseTask}
+            onStop={stopTask}
+            onArchive={archiveTask}
+            onDelete={deleteTask}
+            onUpdateTask={updated => setTasks(prev => prev.map(t => t.id === updated.id ? updated : t))}
+            onUpdateSession={updated => setSessions(prev => prev.map(s => s.id === updated.id ? updated : s))}
+            onUpdateEntry={updated => setEntries(prev => prev.map(e => e.id === updated.id ? updated : e))}
+            onAddSession={session => setSessions(prev => [...prev, session])}
+            onAddEntry={entry => setEntries(prev => [...prev, entry])}
+            onDeleteEntry={entryId => setEntries(prev => prev.filter(e => e.id !== entryId))}
+          />
+        ))}
       </div>
 
-      {/* Add task bar */}
-      <div style={{
-        position: "fixed", bottom: 0,
-        left: "50%", transform: "translateX(-50%)",
-        width: "100%", maxWidth: 480,
-        background: "#0f0f0f",
-        borderTop: "2px solid #1c1c1c",
-        padding: "14px 16px",
-        display: "flex", gap: 10, zIndex: 100
-      }}>
-        <input
-          ref={inputRef}
-          value={newName}
-          onChange={e => setNewName(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") addTask(); }}
-          placeholder="New task name..."
-          style={{
-            flex: 1, background: "#191919",
-            border: "1.5px solid #2a2a2a", borderRadius: 4,
-            color: "#e8e0d5", padding: "12px 14px",
-            fontSize: 14, fontFamily: "'DM Mono', monospace"
-          }}
-        />
-        <button className="btn" onClick={addTask} disabled={!newName.trim()} style={{
-          background: newName.trim() ? "#2f57cd" : "#1a1a1a",
-          color: newName.trim() ? "#0f0f0f" : "#333",
-          border: "none", borderRadius: 4,
-          padding: "0 20px", fontSize: 16, fontWeight: 700,
-          fontFamily: "'Barlow Condensed', sans-serif",
-          letterSpacing: "0.05em"
-        }}>ADD</button>
-      </div>
+      {/* Add task bar - only show on active view */}
+      {!showArchive && (
+        <div style={{
+          position: "fixed", bottom: 0,
+          left: "50%", transform: "translateX(-50%)",
+          width: "100%", maxWidth: 480,
+          background: "#0f0f0f",
+          borderTop: "2px solid #1c1c1c",
+          padding: "14px 16px",
+          display: "flex", gap: 10, zIndex: 100
+        }}>
+          <input
+            ref={inputRef}
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") addTask(); }}
+            placeholder="New task name..."
+            style={{
+              flex: 1, background: "#191919",
+              border: "1.5px solid #2a2a2a", borderRadius: 4,
+              color: "#e8e0d5", padding: "12px 14px",
+              fontSize: 14, fontFamily: "'DM Mono', monospace"
+            }}
+          />
+          <button
+            className="btn"
+            onClick={addTask}
+            disabled={!newName.trim()}
+            style={{
+              background: newName.trim() ? "#c86022" : "#1a1a1a",
+              color: newName.trim() ? "#0f0f0f" : "#333",
+              border: "none", borderRadius: 4,
+              padding: "0 20px", fontSize: 16, fontWeight: 700,
+              fontFamily: "'Barlow Condensed', sans-serif",
+              letterSpacing: "0.05em"
+            }}
+          >ADD</button>
+        </div>
+      )}
     </div>
   );
 }
