@@ -65,13 +65,13 @@ export default function ExportModal({ task, sessions, entries, onClose }) {
       background: "rgba(0,0,0,0.85)",
       zIndex: 200,
       display: "flex",
-      alignItems: "flex-end",
+      alignItems: "center",
       justifyContent: "center"
     }}>
       <div style={{
         background: "#161616",
         border: "1px solid #2a2a2a",
-        borderRadius: "8px 8px 0 0",
+        borderRadius: 8,
         width: "100%",
         maxWidth: 480,
         maxHeight: "80dvh",
