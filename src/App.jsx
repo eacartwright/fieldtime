@@ -295,7 +295,7 @@ export default function App() {
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 26, fontWeight: 800,
             letterSpacing: "0.04em", lineHeight: 1
-          }}>FIELD TIME</div>
+          }}>FieldTime</div>
           <div style={{ fontSize: 10, color: "#666", marginTop: 3, letterSpacing: "0.1em" }}>
             {activeTasks.length > 0
               ? `${activeTasks.length} TASK${activeTasks.length > 1 ? "S" : ""} LOGGED`
