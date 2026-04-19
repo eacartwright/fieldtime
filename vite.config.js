@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Field Time',
+        name: 'FieldTime',
         short_name: 'FieldTime',
-        description: 'Field time tracker for ConnectWise',
+        description: 'Field time tracker',
         theme_color: '#0f0f0f',
         background_color: '#0f0f0f',
         display: 'standalone',
