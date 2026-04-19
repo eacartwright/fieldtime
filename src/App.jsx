@@ -281,7 +281,7 @@ export default function App() {
 
       {/* Header */}
       <div style={{
-        borderBottom: "2px solid #224bc8",
+        borderBottom: "2px solid #2f57cd",
         padding: "18px 20px 14px",
         position: "sticky", top: 0,
         background: "#0f0f0f",
@@ -304,9 +304,9 @@ export default function App() {
         </div>
         {activeTasks.length > 0 && (
           <button className="btn" onClick={() => setShowExport(v => !v)} style={{
-            background: showExport ? "#224bc8" : "transparent",
-            border: "1.5px solid #224bc8",
-            color: showExport ? "#0f0f0f" : "#224bc8",
+            background: showExport ? "#2f57cd" : "transparent",
+            border: "1.5px solid #2f57cd",
+            color: showExport ? "#0f0f0f" : "#2f57cd",
             padding: "7px 14px", borderRadius: 3,
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 13, fontWeight: 700, letterSpacing: "0.08em"
@@ -333,7 +333,7 @@ export default function App() {
           }}>{buildExport()}</pre>
           <button className="btn" onClick={handleCopy} style={{
             marginTop: 12, width: "100%",
-            background: copied ? "#2a5a2a" : "#224bc8",
+            background: copied ? "#2a5a2a" : "#2f57cd",
             color: copied ? "#8fbc8f" : "#0f0f0f",
             padding: 12, borderRadius: 3,
             fontFamily: "'Barlow Condensed', sans-serif",
@@ -368,7 +368,7 @@ export default function App() {
               borderBottom: "1px solid #1c1c1c",
               padding: "14px 20px",
               background: isRunning ? "#141008" : "transparent",
-              borderLeft: isRunning ? "3px solid #224bc8" : "3px solid transparent"
+              borderLeft: isRunning ? "3px solid #2f57cd" : "3px solid transparent"
             }}>
               {/* Name row */}
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -384,7 +384,7 @@ export default function App() {
                     }}
                     style={{
                       flex: 1, background: "transparent", border: "none",
-                      borderBottom: "1.5px solid #224bc8",
+                      borderBottom: "1.5px solid #2f57cd",
                       color: "#e8e0d5", fontSize: 15, padding: "2px 0",
                       fontFamily: "'DM Mono', monospace"
                     }}
@@ -418,7 +418,7 @@ export default function App() {
                   fontFamily: "'Barlow Condensed', sans-serif",
                   fontSize: 32, fontWeight: 700,
                   letterSpacing: "0.06em",
-                  color: isRunning ? "#42e830" : hasSomeTime ? "#e8e0d5" : "#333",
+                  color: isRunning ? "#42e830" : hasSomeTime ? "#d7e8d5" : "#333",
                   minWidth: 120, lineHeight: 1,
                   fontVariantNumeric: "tabular-nums"
                 }}>
@@ -429,9 +429,9 @@ export default function App() {
                   {!isStopped && (
                     <button className="btn" onClick={() => isRunning ? pauseTask() : startTask(task.id)} style={{
                       width: 42, height: 42, borderRadius: 4,
-                      background: isRunning ? "#2a2010" : "#224bc8",
-                      border: isRunning ? "1.5px solid #224bc8" : "none",
-                      color: isRunning ? "#224bc8" : "#0f0f0f",
+                      background: isRunning ? "#172a10" : "#2f57cd",
+                      border: isRunning ? "1.5px solid #2f57cd" : "none",
+                      color: isRunning ? "#2f57cd" : "#0f0f0f",
                       fontSize: 18, display: "flex",
                       alignItems: "center", justifyContent: "center"
                     }}>
@@ -491,7 +491,7 @@ export default function App() {
           }}
         />
         <button className="btn" onClick={addTask} disabled={!newName.trim()} style={{
-          background: newName.trim() ? "#224bc8" : "#1a1a1a",
+          background: newName.trim() ? "#2f57cd" : "#1a1a1a",
           color: newName.trim() ? "#0f0f0f" : "#333",
           border: "none", borderRadius: 4,
           padding: "0 20px", fontSize: 16, fontWeight: 700,
