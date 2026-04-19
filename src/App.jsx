@@ -323,6 +323,7 @@ export default function App() {
             onAddSession={session => setSessions(prev => [...prev, session])}
             onAddEntry={entry => setEntries(prev => [...prev, entry])}
             onDeleteEntry={entryId => setEntries(prev => prev.filter(e => e.id !== entryId))}
+            onDeleteSession={sessionId => setSessions(prev => prev.filter(s => s.id !== sessionId))}
           />
         ))}
       </div>

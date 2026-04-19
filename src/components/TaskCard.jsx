@@ -23,6 +23,7 @@ export default function TaskCard({
   onAddSession,
   onAddEntry,
   onDeleteEntry,
+  onDeleteSession,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -69,6 +70,11 @@ export default function TaskCard({
   const handleDeleteEntry = async (entryId) => {
     await supabase.from("entries").delete().eq("id", entryId);
     onDeleteEntry(entryId);
+  };
+
+  const handleDeleteSession = async (sessionId) => {
+    await supabase.from("sessions").delete().eq("id", sessionId);
+    onDeleteSession(sessionId);
   };
 
   const isStopped = task.status === "stopped";
@@ -120,20 +126,6 @@ export default function TaskCard({
                 )}
               </div>
             )}
-
-            {/* Expand toggle */}
-            <button
-              onClick={() => setExpanded(v => !v)}
-              style={{
-                background: "transparent", border: "none",
-                color: expanded ? "#c86022" : "#444",
-                fontSize: 16, cursor: "pointer", padding: "2px 4px",
-                fontFamily: "'Barlow Condensed', sans-serif",
-                letterSpacing: "0.05em", fontSize: 11
-              }}
-            >
-              {expanded ? "LESS" : "MORE"}
-            </button>
           </div>
 
           {/* Timer + controls */}
@@ -167,15 +159,17 @@ export default function TaskCard({
                 </button>
               )}
               <button
-              onClick={() => setExpanded(v => !v)}
-              style={{
-                  background: "transparent", border: "none",
-                  color: expanded ? "#c86022" : "#444",
-                  fontSize: 22, cursor: "pointer", padding: "2px 4px",
-                  lineHeight: 1
-              }}
+                onClick={() => setExpanded(v => !v)}
+                style={{
+                  width: 42, height: 42, borderRadius: 4,
+                  background: "#1a1a1a", border: "1.5px solid #2a2a2a",
+                  color: expanded ? "#c86022" : "#666",
+                  fontSize: 20, display: "flex",
+                  alignItems: "center", justifyContent: "center",
+                  cursor: "pointer"
+                }}
               >
-              {expanded ? "↑" : "↓"}
+                {expanded ? "↑" : "↓"}
               </button>
               <button
                 className="btn"
@@ -183,12 +177,12 @@ export default function TaskCard({
                 style={{
                   width: 42, height: 42, borderRadius: 4,
                   background: "#1a1a1a", border: "1.5px solid #2a2a2a",
-                  color: "#666", fontSize: 13, display: "flex",
+                  color: "#666", fontSize: 20, display: "flex",
                   alignItems: "center", justifyContent: "center",
                   fontFamily: "'Barlow Condensed', sans-serif",
                   letterSpacing: "0.05em"
                 }}
-              >EXP</button>
+              >⇒</button>
             </div>
           </div>
 
@@ -222,6 +216,7 @@ export default function TaskCard({
                     isActive={isActive && s.ended_at === null}
                     activeStart={activeStart}
                     onUpdate={onUpdateSession}
+                    onDelete={handleDeleteSession}
                   />
                 ))}
             </div>

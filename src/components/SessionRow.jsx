@@ -2,7 +2,7 @@ import { useState } from "react";
 import { formatDuration, formatTimestamp, toDatetimeLocal, fromDatetimeLocal } from "../utils";
 import { supabase } from "../supabase";
 
-export default function SessionRow({ session, isActive, activeStart, onUpdate }) {
+export default function SessionRow({ session, isActive, activeStart, onUpdate, onDelete }) {
   const [editingStart, setEditingStart] = useState(false);
   const [editingEnd, setEditingEnd] = useState(false);
   const [startVal, setStartVal] = useState(toDatetimeLocal(session.started_at));
@@ -59,6 +59,7 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate })
       flexDirection: "column",
       gap: 6
     }}>
+
       {/* Start time */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ fontSize: 10, color: "#555", letterSpacing: "0.1em", minWidth: 36 }}>START</span>
@@ -76,6 +77,16 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate })
           <span onClick={() => setEditingStart(true)} style={{ ...labelStyle, color: "#e8e0d5" }}>
             {formatTimestamp(session.started_at)}
           </span>
+        )}
+        {!isActive && (
+          <button
+            onClick={() => onDelete(session.id)}
+            style={{
+              marginLeft: "auto", background: "transparent",
+              border: "none", color: "#333",
+              cursor: "pointer", fontSize: 14, padding: "0 2px"
+            }}
+          >✕</button>
         )}
       </div>
 
