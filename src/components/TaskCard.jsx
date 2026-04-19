@@ -166,18 +166,17 @@ export default function TaskCard({
                   {isActive ? "⏸" : "▶"}
                 </button>
               )}
-              {!isStopped && elapsed > 0 && (
-                <button
-                  className="btn"
-                  onClick={() => onStop(task.id)}
-                  style={{
-                    width: 42, height: 42, borderRadius: 4,
-                    background: "#1a1a1a", border: "1.5px solid #333",
-                    color: "#888", fontSize: 16, display: "flex",
-                    alignItems: "center", justifyContent: "center"
-                  }}
-                >⏹</button>
-              )}
+              <button
+              onClick={() => setExpanded(v => !v)}
+              style={{
+                  background: "transparent", border: "none",
+                  color: expanded ? "#c86022" : "#444",
+                  fontSize: 22, cursor: "pointer", padding: "2px 4px",
+                  lineHeight: 1
+              }}
+              >
+              {expanded ? "↑" : "↓"}
+              </button>
               <button
                 className="btn"
                 onClick={() => setShowExport(true)}
