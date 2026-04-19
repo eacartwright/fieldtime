@@ -259,7 +259,7 @@ export default function App() {
             fontSize: 26, fontWeight: 800,
             letterSpacing: "0.04em", lineHeight: 1,
             color: theme.textPrimary
-          }}>FIELD TIME</div>
+          }}>FIELDTIME</div>
           <div style={{ fontSize: 10, color: theme.textMuted, marginTop: 3, letterSpacing: "0.1em" }}>
             {showArchive
               ? `${archivedTasks.length} ARCHIVED TASK${archivedTasks.length !== 1 ? "S" : ""}`
