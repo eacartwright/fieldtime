@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { formatDuration, formatForCW, formatDateOnly, formatTimestamp } from "../utils";
+import { formatDuration, formatForCW, formatTimestamp } from "../utils";
+import { theme } from "../theme";
 
 export default function ExportModal({ task, sessions, entries, onClose }) {
   const [copied, setCopied] = useState(false);
@@ -11,13 +12,10 @@ export default function ExportModal({ task, sessions, entries, onClose }) {
 
   const buildExport = () => {
     const lines = [];
-
     lines.push(`TASK: ${task.name}`);
     lines.push("─".repeat(40));
 
-    // Group sessions by date
     const sortedSessions = [...sessions].sort((a, b) => a.started_at - b.started_at);
-
     sortedSessions.forEach(s => {
       const start = new Date(s.started_at).toLocaleString("en-US", {
         month: "short", day: "numeric", year: "numeric",
@@ -28,9 +26,7 @@ export default function ExportModal({ task, sessions, entries, onClose }) {
             hour: "numeric", minute: "2-digit", hour12: true
           })
         : "running";
-      const dur = s.ended_at
-        ? formatDuration(s.ended_at - s.started_at)
-        : "";
+      const dur = s.ended_at ? formatDuration(s.ended_at - s.started_at) : "";
       lines.push(`SESSION: ${start} → ${end}${dur ? `  (${dur})` : ""}`);
     });
 
@@ -69,19 +65,19 @@ export default function ExportModal({ task, sessions, entries, onClose }) {
       justifyContent: "center"
     }}>
       <div style={{
-        background: "#161616",
-        border: "1px solid #2a2a2a",
+        background: theme.bgElevated,
+        border: `1px solid ${theme.borderMid}`,
         borderRadius: 8,
         width: "100%",
         maxWidth: 480,
         maxHeight: "80dvh",
         display: "flex",
-        flexDirection: "column"
+        flexDirection: "column",
+        margin: "0 16px"
       }}>
-        {/* Header */}
         <div style={{
           padding: "16px 20px",
-          borderBottom: "1px solid #2a2a2a",
+          borderBottom: `1px solid ${theme.borderMid}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -91,35 +87,33 @@ export default function ExportModal({ task, sessions, entries, onClose }) {
             <div style={{
               fontFamily: "'Barlow Condensed', sans-serif",
               fontSize: 16, fontWeight: 700,
-              letterSpacing: "0.08em", color: "#e8e0d5"
+              letterSpacing: "0.08em", color: theme.textPrimary
             }}>EXPORT</div>
-            <div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{task.name}</div>
+            <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 2 }}>{task.name}</div>
           </div>
           <button onClick={onClose} style={{
             background: "transparent", border: "none",
-            color: "#555", fontSize: 20, cursor: "pointer"
+            color: theme.textFaint, fontSize: 20, cursor: "pointer"
           }}>✕</button>
         </div>
 
-        {/* Content */}
         <div style={{ overflowY: "auto", padding: "16px 20px", flex: 1 }}>
           <pre style={{
             background: "#0a0a0a",
-            border: "1px solid #2a2a2a",
+            border: `1px solid ${theme.borderMid}`,
             borderRadius: 4, padding: 14,
             fontSize: 12, lineHeight: 1.7,
-            color: "#aaa", margin: 0,
+            color: theme.textDim, margin: 0,
             whiteSpace: "pre-wrap", wordBreak: "break-word",
             fontFamily: "'DM Mono', monospace"
           }}>{buildExport()}</pre>
         </div>
 
-        {/* Footer */}
-        <div style={{ padding: "16px 20px", borderTop: "1px solid #2a2a2a", flexShrink: 0 }}>
+        <div style={{ padding: "16px 20px", borderTop: `1px solid ${theme.borderMid}`, flexShrink: 0 }}>
           <button onClick={handleCopy} style={{
             width: "100%",
-            background: copied ? "#2a5a2a" : "#c86022",
-            color: copied ? "#8fbc8f" : "#0f0f0f",
+            background: copied ? "#2a5a2a" : theme.accent,
+            color: copied ? "#8fbc8f" : theme.bg,
             border: "none", borderRadius: 4,
             padding: 14,
             fontFamily: "'Barlow Condensed', sans-serif",

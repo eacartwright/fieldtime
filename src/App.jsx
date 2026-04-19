@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import { genId } from "./utils";
+import { theme } from "./theme";
 import TaskCard from "./components/TaskCard";
 
 const SESSION_KEY = "fieldtime-session";
@@ -31,7 +32,6 @@ export default function App() {
   const [showArchive, setShowArchive] = useState(false);
   const inputRef = useRef(null);
 
-  // Load everything on mount
   useEffect(() => {
     async function fetchAll() {
       const [tasksRes, sessionsRes, entriesRes] = await Promise.all([
@@ -52,7 +52,6 @@ export default function App() {
       setActiveStart(session.start);
     }
 
-    // Realtime subscriptions
     const taskChannel = supabase
       .channel("tasks-sync")
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, payload => {
@@ -99,7 +98,6 @@ export default function App() {
     };
   }, []);
 
-  // Tick for active timer
   useEffect(() => {
     if (!activeId) return;
     const interval = setInterval(() => setTick(t => t + 1), 1000);
@@ -108,8 +106,6 @@ export default function App() {
 
   const startTask = async (taskId) => {
     const now = Date.now();
-
-    // End current active session if any
     if (activeId && activeStart) {
       const activeSession = sessions.find(s => s.task_id === activeId && s.ended_at === null);
       if (activeSession) {
@@ -122,7 +118,6 @@ export default function App() {
       setTasks(prev => prev.map(t => t.id === activeId ? { ...t, status: "paused" } : t));
     }
 
-    // Start new session
     const newSession = {
       id: genId(),
       task_id: taskId,
@@ -134,7 +129,6 @@ export default function App() {
     setSessions(prev => [...prev, newSession]);
     await supabase.from("tasks").update({ status: "running" }).eq("id", taskId);
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: "running" } : t));
-
     setActiveId(taskId);
     setActiveStart(now);
     saveSession({ id: taskId, start: now });
@@ -177,9 +171,7 @@ export default function App() {
   };
 
   const archiveTask = async (taskId) => {
-    if (taskId === activeId) {
-      await pauseTask();
-    }
+    if (taskId === activeId) await pauseTask();
     await supabase.from("tasks").update({ archived: true }).eq("id", taskId);
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, archived: true } : t));
   };
@@ -220,9 +212,9 @@ export default function App() {
 
   if (loading) return (
     <div style={{
-      minHeight: "100dvh", background: "#0f0f0f",
+      minHeight: "100dvh", background: theme.bg,
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "'DM Mono', monospace", color: "#444",
+      fontFamily: "'DM Mono', monospace", color: theme.textDead,
       fontSize: 13, letterSpacing: "0.1em"
     }}>LOADING...</div>
   );
@@ -230,8 +222,8 @@ export default function App() {
   return (
     <div style={{
       minHeight: "100dvh",
-      background: "#0f0f0f",
-      color: "#e8e0d5",
+      background: theme.bg,
+      color: theme.textPrimary,
       fontFamily: "'DM Mono', 'Courier New', monospace",
       maxWidth: 480,
       margin: "0 auto",
@@ -240,7 +232,7 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Barlow+Condensed:wght@400;600;700;800&display=swap');
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin: 0; padding: 0; background: #0f0f0f; }
+        body { margin: 0; padding: 0; background: ${theme.bg}; }
         .btn { cursor: pointer; border: none; transition: transform 0.12s; user-select: none; }
         .btn:active { transform: scale(0.92); }
         .pulse { animation: pulse 1.8s ease-in-out infinite; }
@@ -252,10 +244,10 @@ export default function App() {
 
       {/* Header */}
       <div style={{
-        borderBottom: "2px solid #c86022",
+        borderBottom: `2px solid ${theme.accent}`,
         padding: "18px 20px 14px",
         position: "sticky", top: 0,
-        background: "#0f0f0f",
+        background: theme.bg,
         zIndex: 100,
         display: "flex",
         alignItems: "center",
@@ -265,9 +257,10 @@ export default function App() {
           <div style={{
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 26, fontWeight: 800,
-            letterSpacing: "0.04em", lineHeight: 1
+            letterSpacing: "0.04em", lineHeight: 1,
+            color: theme.textPrimary
           }}>FIELD TIME</div>
-          <div style={{ fontSize: 10, color: "#666", marginTop: 3, letterSpacing: "0.1em" }}>
+          <div style={{ fontSize: 10, color: theme.textMuted, marginTop: 3, letterSpacing: "0.1em" }}>
             {showArchive
               ? `${archivedTasks.length} ARCHIVED TASK${archivedTasks.length !== 1 ? "S" : ""}`
               : `${activeTasks.length} ACTIVE TASK${activeTasks.length !== 1 ? "S" : ""}`}
@@ -277,9 +270,9 @@ export default function App() {
           className="btn"
           onClick={() => setShowArchive(v => !v)}
           style={{
-            background: showArchive ? "#c86022" : "transparent",
-            border: "1.5px solid #c86022",
-            color: showArchive ? "#0f0f0f" : "#c86022",
+            background: showArchive ? theme.accent : "transparent",
+            border: `1.5px solid ${theme.accent}`,
+            color: showArchive ? theme.bg : theme.accent,
             padding: "7px 14px", borderRadius: 3,
             fontFamily: "'Barlow Condensed', sans-serif",
             fontSize: 13, fontWeight: 700, letterSpacing: "0.08em"
@@ -294,7 +287,8 @@ export default function App() {
         {displayTasks.length === 0 && (
           <div style={{
             padding: "48px 24px", textAlign: "center",
-            color: "#444", fontSize: 13, lineHeight: 1.8, letterSpacing: "0.05em"
+            color: theme.textDead, fontSize: 13,
+            lineHeight: 1.8, letterSpacing: "0.05em"
           }}>
             {showArchive ? "NO ARCHIVED TASKS" : "NO TASKS YET"}<br />
             <span style={{ fontSize: 11 }}>
@@ -328,14 +322,14 @@ export default function App() {
         ))}
       </div>
 
-      {/* Add task bar - only show on active view */}
+      {/* Add task bar */}
       {!showArchive && (
         <div style={{
           position: "fixed", bottom: 0,
           left: "50%", transform: "translateX(-50%)",
           width: "100%", maxWidth: 480,
-          background: "#0f0f0f",
-          borderTop: "2px solid #1c1c1c",
+          background: theme.bg,
+          borderTop: `2px solid ${theme.border}`,
           padding: "14px 16px",
           display: "flex", gap: 10, zIndex: 100
         }}>
@@ -346,9 +340,9 @@ export default function App() {
             onKeyDown={e => { if (e.key === "Enter") addTask(); }}
             placeholder="New task name..."
             style={{
-              flex: 1, background: "#191919",
-              border: "1.5px solid #2a2a2a", borderRadius: 4,
-              color: "#e8e0d5", padding: "12px 14px",
+              flex: 1, background: theme.bgInput,
+              border: `1.5px solid ${theme.borderMid}`, borderRadius: 4,
+              color: theme.textPrimary, padding: "12px 14px",
               fontSize: 14, fontFamily: "'DM Mono', monospace"
             }}
           />
@@ -357,8 +351,8 @@ export default function App() {
             onClick={addTask}
             disabled={!newName.trim()}
             style={{
-              background: newName.trim() ? "#c86022" : "#1a1a1a",
-              color: newName.trim() ? "#0f0f0f" : "#333",
+              background: newName.trim() ? theme.accent : theme.bgCard,
+              color: newName.trim() ? theme.bg : theme.textInactive,
               border: "none", borderRadius: 4,
               padding: "0 20px", fontSize: 16, fontWeight: 700,
               fontFamily: "'Barlow Condensed', sans-serif",

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { formatDuration, formatTimestamp, toDatetimeLocal, fromDatetimeLocal } from "../utils";
 import { supabase } from "../supabase";
+import { theme } from "../theme";
 
 export default function SessionRow({ session, isActive, activeStart, onUpdate, onDelete }) {
   const [editingStart, setEditingStart] = useState(false);
@@ -33,10 +34,10 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate, o
   };
 
   const inputStyle = {
-    background: "#1a1a1a",
-    border: "1px solid #c86022",
+    background: theme.bgInput,
+    border: `1px solid ${theme.accent}`,
     borderRadius: 3,
-    color: "#e8e0d5",
+    color: theme.textPrimary,
     fontSize: 11,
     padding: "3px 6px",
     fontFamily: "'DM Mono', monospace"
@@ -50,8 +51,8 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate, o
 
   return (
     <div style={{
-      background: "#111",
-      border: "1px solid #1e1e1e",
+      background: theme.bgCard,
+      border: `1px solid ${theme.borderMid}`,
       borderRadius: 4,
       padding: "10px 12px",
       marginBottom: 8,
@@ -59,10 +60,9 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate, o
       flexDirection: "column",
       gap: 6
     }}>
-
       {/* Start time */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, color: "#555", letterSpacing: "0.1em", minWidth: 36 }}>START</span>
+        <span style={{ fontSize: 10, color: theme.textFaint, letterSpacing: "0.1em", minWidth: 36 }}>START</span>
         {editingStart ? (
           <input
             type="datetime-local"
@@ -74,7 +74,7 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate, o
             style={inputStyle}
           />
         ) : (
-          <span onClick={() => setEditingStart(true)} style={{ ...labelStyle, color: "#e8e0d5" }}>
+          <span onClick={() => setEditingStart(true)} style={{ ...labelStyle, color: theme.textPrimary }}>
             {formatTimestamp(session.started_at)}
           </span>
         )}
@@ -83,7 +83,7 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate, o
             onClick={() => onDelete(session.id)}
             style={{
               marginLeft: "auto", background: "transparent",
-              border: "none", color: "#333",
+              border: "none", color: theme.textInactive,
               cursor: "pointer", fontSize: 14, padding: "0 2px"
             }}
           >✕</button>
@@ -92,9 +92,9 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate, o
 
       {/* End time */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, color: "#555", letterSpacing: "0.1em", minWidth: 36 }}>END</span>
+        <span style={{ fontSize: 10, color: theme.textFaint, letterSpacing: "0.1em", minWidth: 36 }}>END</span>
         {isActive ? (
-          <span style={{ ...labelStyle, color: "#c86022" }}>running...</span>
+          <span style={{ ...labelStyle, color: theme.accent }}>running...</span>
         ) : editingEnd ? (
           <input
             type="datetime-local"
@@ -108,7 +108,7 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate, o
         ) : (
           <span
             onClick={() => session.ended_at && setEditingEnd(true)}
-            style={{ ...labelStyle, color: session.ended_at ? "#e8e0d5" : "#444" }}
+            style={{ ...labelStyle, color: session.ended_at ? theme.textPrimary : theme.textDead }}
           >
             {session.ended_at ? formatTimestamp(session.ended_at) : "—"}
           </span>
@@ -117,8 +117,8 @@ export default function SessionRow({ session, isActive, activeStart, onUpdate, o
 
       {/* Duration */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ fontSize: 10, color: "#555", letterSpacing: "0.1em", minWidth: 36 }}>DUR</span>
-        <span style={{ fontSize: 11, color: "#666", fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ fontSize: 10, color: theme.textFaint, letterSpacing: "0.1em", minWidth: 36 }}>DUR</span>
+        <span style={{ fontSize: 11, color: theme.textMuted, fontVariantNumeric: "tabular-nums" }}>
           {formatDuration(getSessionDuration())}
         </span>
       </div>

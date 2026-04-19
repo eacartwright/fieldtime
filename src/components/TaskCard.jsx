@@ -1,29 +1,18 @@
 import { useState } from "react";
 import { formatDuration, formatForCW, genId } from "../utils";
 import { supabase } from "../supabase";
+import { theme } from "../theme";
 import SessionRow from "./SessionRow";
 import EntryRow from "./EntryRow";
 import ExportModal from "./ExportModal";
 
 export default function TaskCard({
-  task,
-  sessions,
-  entries,
-  isActive,
-  activeStart,
-  tick,
-  onStart,
-  onPause,
-  onStop,
-  onArchive,
-  onDelete,
-  onUpdateTask,
-  onUpdateSession,
-  onUpdateEntry,
-  onAddSession,
-  onAddEntry,
-  onDeleteEntry,
-  onDeleteSession,
+  task, sessions, entries,
+  isActive, activeStart, tick,
+  onStart, onPause, onStop,
+  onArchive, onDelete,
+  onUpdateTask, onUpdateSession, onUpdateEntry,
+  onAddSession, onAddEntry, onDeleteEntry, onDeleteSession,
 }) {
   const [expanded, setExpanded] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -33,15 +22,12 @@ export default function TaskCard({
   const [addingEntry, setAddingEntry] = useState(false);
 
   const getTotalElapsed = () => {
-    const sessionTotal = sessions.reduce((acc, s) => {
+    return sessions.reduce((acc, s) => {
       const end = (isActive && s.ended_at === null) ? Date.now() : s.ended_at;
       if (!end) return acc;
       return acc + Math.max(0, end - s.started_at);
     }, 0);
-    return sessionTotal;
   };
-
-  const activeSession = sessions.find(s => s.ended_at === null);
 
   const commitName = async () => {
     const name = nameVal.trim();
@@ -83,11 +69,10 @@ export default function TaskCard({
   return (
     <>
       <div style={{
-        borderBottom: "1px solid #1c1c1c",
-        borderLeft: isActive ? "3px solid #c86022" : "3px solid transparent",
-        background: isActive ? "#141008" : "transparent",
+        borderBottom: `1px solid ${theme.border}`,
+        borderLeft: isActive ? `3px solid ${theme.accent}` : "3px solid transparent",
+        background: isActive ? theme.accentDim : "transparent",
       }}>
-        {/* Main row */}
         <div style={{ padding: "14px 20px" }}>
           {/* Name row */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -103,8 +88,8 @@ export default function TaskCard({
                 autoFocus
                 style={{
                   flex: 1, background: "transparent", border: "none",
-                  borderBottom: "1.5px solid #c86022",
-                  color: "#e8e0d5", fontSize: 15, padding: "2px 0",
+                  borderBottom: `1.5px solid ${theme.accent}`,
+                  color: theme.textPrimary, fontSize: 15, padding: "2px 0",
                   fontFamily: "'DM Mono', monospace", outline: "none"
                 }}
               />
@@ -113,14 +98,13 @@ export default function TaskCard({
                 onDoubleClick={() => setEditingName(true)}
                 style={{
                   flex: 1, fontSize: 14,
-                  color: isStopped ? "#555" : "#ccc",
-                  letterSpacing: "0.03em", wordBreak: "break-word",
-                  cursor: "text"
+                  color: isStopped ? theme.textFaint : theme.textMid,
+                  letterSpacing: "0.03em", wordBreak: "break-word", cursor: "text"
                 }}
               >
                 {task.name}
                 {isStopped && (
-                  <span style={{ marginLeft: 8, fontSize: 10, color: "#444", letterSpacing: "0.1em" }}>
+                  <span style={{ marginLeft: 8, fontSize: 10, color: theme.textDead, letterSpacing: "0.1em" }}>
                     DONE
                   </span>
                 )}
@@ -132,11 +116,9 @@ export default function TaskCard({
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div className={isActive ? "pulse" : ""} style={{
               fontFamily: "'Barlow Condensed', sans-serif",
-              fontSize: 32, fontWeight: 700,
-              letterSpacing: "0.06em",
-              color: isActive ? "#e87a30" : elapsed > 0 ? "#e8e0d5" : "#333",
-              minWidth: 120, lineHeight: 1,
-              fontVariantNumeric: "tabular-nums"
+              fontSize: 32, fontWeight: 700, letterSpacing: "0.06em",
+              color: isActive ? theme.accentWarm : elapsed > 0 ? theme.textPrimary : theme.textInactive,
+              minWidth: 120, lineHeight: 1, fontVariantNumeric: "tabular-nums"
             }}>
               {formatDuration(elapsed)}
             </div>
@@ -148,9 +130,9 @@ export default function TaskCard({
                   onClick={() => isActive ? onPause() : onStart(task.id)}
                   style={{
                     width: 42, height: 42, borderRadius: 4,
-                    background: isActive ? "#2a2010" : "#c86022",
-                    border: isActive ? "1.5px solid #c86022" : "none",
-                    color: isActive ? "#c86022" : "#0f0f0f",
+                    background: isActive ? theme.accentDim : theme.accent,
+                    border: isActive ? `1.5px solid ${theme.accent}` : "none",
+                    color: isActive ? theme.accent : theme.bg,
                     fontSize: 18, display: "flex",
                     alignItems: "center", justifyContent: "center"
                   }}
@@ -162,8 +144,9 @@ export default function TaskCard({
                 onClick={() => setExpanded(v => !v)}
                 style={{
                   width: 42, height: 42, borderRadius: 4,
-                  background: "#1a1a1a", border: "1.5px solid #2a2a2a",
-                  color: expanded ? "#c86022" : "#666",
+                  background: theme.bgCard,
+                  border: `1.5px solid ${theme.borderMid}`,
+                  color: expanded ? theme.accent : theme.textMuted,
                   fontSize: 20, display: "flex",
                   alignItems: "center", justifyContent: "center",
                   cursor: "pointer"
@@ -176,8 +159,8 @@ export default function TaskCard({
                 onClick={() => setShowExport(true)}
                 style={{
                   width: 42, height: 42, borderRadius: 4,
-                  background: "#1a1a1a", border: "1.5px solid #2a2a2a",
-                  color: "#666", fontSize: 20, display: "flex",
+                  background: theme.bgCard, border: `1.5px solid ${theme.borderMid}`,
+                  color: theme.textMuted, fontSize: 20, display: "flex",
                   alignItems: "center", justifyContent: "center",
                   fontFamily: "'Barlow Condensed', sans-serif",
                   letterSpacing: "0.05em"
@@ -186,9 +169,8 @@ export default function TaskCard({
             </div>
           </div>
 
-          {/* CW hint */}
           {elapsed > 0 && (
-            <div style={{ marginTop: 8, fontSize: 11, color: "#555", letterSpacing: "0.08em" }}>
+            <div style={{ marginTop: 8, fontSize: 11, color: theme.textFaint, letterSpacing: "0.08em" }}>
               CW: {formatForCW(elapsed)}
             </div>
           )}
@@ -197,15 +179,13 @@ export default function TaskCard({
         {/* Expanded section */}
         {expanded && (
           <div style={{ padding: "0 20px 16px" }}>
-
             {/* Sessions */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{
-                fontSize: 10, color: "#555",
-                letterSpacing: "0.1em", marginBottom: 8
-              }}>SESSIONS</div>
+              <div style={{ fontSize: 10, color: theme.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>
+                SESSIONS
+              </div>
               {sessions.length === 0 && (
-                <div style={{ fontSize: 12, color: "#333" }}>No sessions yet.</div>
+                <div style={{ fontSize: 12, color: theme.textInactive }}>No sessions yet.</div>
               )}
               {[...sessions]
                 .sort((a, b) => a.started_at - b.started_at)
@@ -223,12 +203,11 @@ export default function TaskCard({
 
             {/* Entries */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{
-                fontSize: 10, color: "#555",
-                letterSpacing: "0.1em", marginBottom: 8
-              }}>NOTES</div>
+              <div style={{ fontSize: 10, color: theme.textFaint, letterSpacing: "0.1em", marginBottom: 8 }}>
+                NOTES
+              </div>
               {entries.length === 0 && !addingEntry && (
-                <div style={{ fontSize: 12, color: "#333", marginBottom: 8 }}>No notes yet.</div>
+                <div style={{ fontSize: 12, color: theme.textInactive, marginBottom: 8 }}>No notes yet.</div>
               )}
               {[...entries]
                 .sort((a, b) => a.noted_at - b.noted_at)
@@ -241,13 +220,11 @@ export default function TaskCard({
                   />
                 ))}
 
-              {/* New entry form */}
               {addingEntry ? (
                 <div style={{
-                  background: "#111",
-                  border: "1px solid #c86022",
-                  borderRadius: 4,
-                  padding: "10px 12px"
+                  background: theme.bgCard,
+                  border: `1px solid ${theme.accent}`,
+                  borderRadius: 4, padding: "10px 12px"
                 }}>
                   <textarea
                     value={newEntryBody}
@@ -257,10 +234,9 @@ export default function TaskCard({
                     rows={4}
                     style={{
                       width: "100%", background: "transparent",
-                      border: "none", color: "#e8e0d5",
+                      border: "none", color: theme.textPrimary,
                       fontSize: 13, fontFamily: "'DM Mono', monospace",
-                      resize: "vertical", lineHeight: 1.6,
-                      outline: "none"
+                      resize: "vertical", lineHeight: 1.6, outline: "none"
                     }}
                   />
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -268,7 +244,7 @@ export default function TaskCard({
                       className="btn"
                       onClick={handleAddEntry}
                       style={{
-                        background: "#c86022", color: "#0f0f0f",
+                        background: theme.accent, color: theme.bg,
                         border: "none", borderRadius: 3,
                         padding: "7px 16px",
                         fontFamily: "'Barlow Condensed', sans-serif",
@@ -279,8 +255,8 @@ export default function TaskCard({
                       className="btn"
                       onClick={() => { setAddingEntry(false); setNewEntryBody(""); }}
                       style={{
-                        background: "transparent", color: "#555",
-                        border: "1px solid #2a2a2a", borderRadius: 3,
+                        background: "transparent", color: theme.textFaint,
+                        border: `1px solid ${theme.borderMid}`, borderRadius: 3,
                         padding: "7px 16px",
                         fontFamily: "'Barlow Condensed', sans-serif",
                         fontSize: 13, letterSpacing: "0.08em"
@@ -294,12 +270,11 @@ export default function TaskCard({
                   onClick={() => setAddingEntry(true)}
                   style={{
                     background: "transparent",
-                    border: "1px dashed #2a2a2a",
-                    borderRadius: 4, color: "#555",
+                    border: `1px dashed ${theme.borderMid}`,
+                    borderRadius: 4, color: theme.textFaint,
                     padding: "8px 14px", width: "100%",
                     fontFamily: "'Barlow Condensed', sans-serif",
-                    fontSize: 12, letterSpacing: "0.08em",
-                    cursor: "pointer"
+                    fontSize: 12, letterSpacing: "0.08em", cursor: "pointer"
                   }}
                 >+ ADD NOTE</button>
               )}
@@ -312,8 +287,8 @@ export default function TaskCard({
                 onClick={() => onArchive(task.id)}
                 style={{
                   flex: 1, background: "transparent",
-                  border: "1px solid #2a2a2a", borderRadius: 3,
-                  color: "#555", padding: "8px",
+                  border: `1px solid ${theme.borderMid}`, borderRadius: 3,
+                  color: theme.textFaint, padding: "8px",
                   fontFamily: "'Barlow Condensed', sans-serif",
                   fontSize: 12, letterSpacing: "0.08em"
                 }}
@@ -323,8 +298,8 @@ export default function TaskCard({
                 onClick={() => onDelete(task.id)}
                 style={{
                   flex: 1, background: "transparent",
-                  border: "1px solid #2a2a2a", borderRadius: 3,
-                  color: "#555", padding: "8px",
+                  border: `1px solid ${theme.borderMid}`, borderRadius: 3,
+                  color: theme.textFaint, padding: "8px",
                   fontFamily: "'Barlow Condensed', sans-serif",
                   fontSize: 12, letterSpacing: "0.08em"
                 }}
