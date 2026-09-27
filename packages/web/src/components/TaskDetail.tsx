@@ -84,7 +84,8 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
             <button
               className="btn primary"
               onClick={(e) => {
-                a.continueTask(taskId, e.shiftKey);
+                // Same as the list's ▶: adds to what's running; Shift switches.
+                a.continueTask(taskId, !e.shiftKey);
                 onClose();
               }}
             >

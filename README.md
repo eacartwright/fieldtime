@@ -27,7 +27,8 @@ Data lives in `data/fieldtime.db` (SQLite, git-ignored). Set `FIELDTIME_DB` to u
 | Start a new task (stops what's running) | **Alt+N** or ▶ New | ▶ New (bottom bar) |
 | Start a new task alongside | **Alt+Shift+N** or Shift+▶ New | + Also working on… |
 | Just start typing when nothing is running | click the notes box | tap the notes box |
-| Find / continue any task | **Ctrl+K** or **/** (Shift+Enter = alongside) | Find |
+| Continue a task from the list (adds to what's running) | ▶ on the row (Shift+click = switch to just this) | ▶ on the row |
+| Find / switch to any task | **Ctrl+K** or **/** (Shift+Enter = alongside) | Find |
 | Stop | **Alt+P** (top card) | Stop on the card or list row |
 | Add to inbox (don't start) | **Alt+I** | + Inbox |
 

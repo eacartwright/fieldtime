@@ -117,11 +117,12 @@ function TaskRow({ info, now, view, onOpen }: { info: TaskInfo; now: number; vie
         <button
           className="play"
           onClick={(e) => {
-            a.continueTask(info.task.id, e.shiftKey);
+            // Adds to whatever is running; Shift+click switches (stops the others).
+            a.continueTask(info.task.id, !e.shiftKey);
             window.scrollTo({ top: 0, behavior: "smooth" });
           }}
           aria-label={`Start ${info.title}`}
-          title="Continue (Shift+click to run alongside)"
+          title="Start alongside what's running (Shift+click to switch to just this)"
         >
           ▶
         </button>

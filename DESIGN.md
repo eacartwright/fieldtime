@@ -205,8 +205,8 @@ kept three copies of "what's running," and they drifted apart. Here there is onl
 | Verb | Effect |
 |---|---|
 | **▶ New** | Start a new task now, note field focused, stopping whatever's running. *The primary button everywhere.* |
-| **▶ Continue** | Start (or resume) a session on an existing task, from the switcher, a list or the Client page. |
-| **Alongside** | Either of the above without stopping anything: "+ Also working on…", or Shift on desktop. |
+| **▶ Continue** | Start (or resume) a session on an existing task. The ▶ on a list row or in task details **adds it alongside** whatever is running (Shift+click switches instead). Picking a task in the switcher **switches** (Shift+Enter adds alongside). |
+| **Alongside** | "+ Also working on…" (phone), or Shift with ▶ New / the switcher (desktop). |
 | **Stop** | Per running card, per list row, or "Stop all". |
 | **+ Inbox** | Add an unstarted task (title, optional client) without touching the clock. |
 
@@ -254,6 +254,32 @@ pressing ▶ New.
         2:00– 3:00   Onsite - Business Hours   "…"
    ```
    Gaps between sessions are shown.
+7. **Day calendar** (planned): the same day drawn like Google/Outlook calendar or CW Time
+   Sheets. See below.
+
+### Day calendar (planned)
+
+A vertical timeline of one day, with each session drawn as a block. It's for *seeing* the day:
+spotting a gap and thinking "oh right, that's when I helped Sam with the switch," then filling it
+in on the spot.
+
+- **Blocks**: one per session, labeled with the task title, client and work type. Overlapping
+  (concurrent) sessions sit side by side in columns, as calendars do with overlapping meetings.
+  The running session grows live.
+- **Drag to move, drag the edges to resize.** Times snap to the snap setting (5/15 min). This
+  becomes the fastest way to fix times, often faster than typing them.
+- **Gaps are visible.** Unaccounted stretches within the workday are shaded. Tapping or dragging
+  across a gap opens the switcher to pick an existing task or type a new one, and creates a
+  session exactly covering that span.
+- **Tap a block** to open its session (notes, work type) or the task. Select several of the same
+  task to merge.
+- **Phone**: the same view in one narrow column. Long-press to drag, tap a gap to fill it.
+- **Later**: a week view (days side by side), matching CW's weekly Time Sheet.
+
+Needs from the core: a `session.create` op (manual session with start/end), and editing
+start/end, which the editing half of M1 adds anyway. The calendar is a natural home for that
+editing, so it may replace much of the form-based time picker. Implementation choice at build
+time: a custom timeline (full control, small) or FullCalendar's time-grid (MIT, has drag/resize).
 
 ### Time entry
 
@@ -369,6 +395,7 @@ always kept.
 | # | Goal | Done when… |
 |---|---|---|
 | **M1** | Core loop | Server on mini PC + web UI on iPhone and desktop browser. ▶ New / ▶ Continue / alongside / Stop, stacked running cards with notes, blip discard, resume-within-gap, session merge. Switcher with recent-first search + client filter. Inbox. Time picker, manual sessions, deduct. Groups + categories as local lists (labels "Client"/"Work Type"). Task detail by day, Day report, Client page. Plain-text export. Outbox in place. |
+| **M1.5** | Day calendar | Day timeline with drag/resize, visible gaps, tap-a-gap to fill it. Candidate to carry most of M1's time editing. |
 | **M2** | Hands-free capture | Shortcuts endpoints → Back Tap, Control Center, Siri note. |
 | **M3** | Desktop presence | Tauri: always-on-top Now bar, global hotkeys (▶ New, Switcher, Stop), tray. |
 | **M4** | Bad-signal hardening | Airplane-mode test on iPhone, no lost ops, "pending sync" indicator. |
