@@ -35,14 +35,14 @@ ticket up front, then re-typing times and running notes through AI by hand after
 
 ## 2. Principles (in priority order)
 
-1. **Switching is one action.** Starting something new automatically pauses whatever was
-   running. Resuming the previous thing is also one action.
+1. **Switching is one action.** Starting something new stops whatever was running, unless you
+   start it *alongside*. Returning to earlier work is also one action.
 2. **Capture now, classify later.** A new task needs only a title. Everything else can be filled
    in afterwards.
 3. **Never lose time or notes.** A flaky connection, a closed tab or a dead battery must not drop
    a start/stop or a note.
-4. **One running thing, everywhere.** Whether something is running is shared state, not
-   per-device.
+4. **What's running is the same everywhere.** Running state is shared, not per-device. Several
+   tasks can run at once (work is organic, and CW allows overlapping entries).
 5. **The data outlives any service.** I host it myself, it's a plain file I can back up, and no
    vendor can pause or delete it.
 6. **The core stays generic, and integrations are optional.** Remove the CW integration and the
@@ -141,6 +141,14 @@ Derived: **duration** = end − start − deduct.
 - **Midnight rule**: a session crossing midnight is split at 00:00, so every session belongs to
   exactly one day.
 - **Manual sessions**: add a session after the fact without having run a timer.
+- **Blips are discarded**: a session under 30 seconds with no notes is dropped when it stops,
+  unless it's the task's only session. Tapping the wrong task doesn't leave junk behind.
+- **Resume, don't fragment**: continuing a task within 10 minutes of its last session ending
+  reopens that session instead of starting a new one, so bouncing between tasks doesn't produce a
+  pile of tiny entries. (Both thresholds are constants in `shared/src/reducer.ts`.)
+- **Merge**: in task details, tap one session and then another. Everything between them is
+  selected. Merging keeps the earliest start and the latest end, and joins the notes (empty
+  "continuation" notes are skipped). Merges are same-day only, since each CW entry is for one day.
 
 ### Client scratchpad (later milestone)
 One markdown scratchpad per client, one tap from anywhere that client appears. It's for the
@@ -163,10 +171,15 @@ SALES - Quoting · Travel - To Client · Travel - From Client · Training - Prov
 
 ## 6. The one invariant
 
-> **At most one session in the whole database has `end = null`.**
+> **Each task has at most one open session.** Several tasks may be running at once.
 
-This is enforced on the server, inside a transaction. Every "start" is really a **switch**: close
-the open session (if any) at time *t*, then open the new one at the same *t*.
+Starting a task comes in two modes:
+- **Switch** (default): close every other open session at time *t*, then start this one at the
+  same *t*.
+- **Alongside**: start this one and leave the others running.
+
+The reducer enforces this on the server, inside a transaction, and it's covered by tests. v1
+kept three copies of "what's running," and they drifted apart. Here there is only one.
 
 ## 7. Interaction design
 
@@ -179,20 +192,26 @@ the open session (if any) at time *t*, then open the new one at the same *t*.
 3. **Pivot: press ▶ again.** The current session stops at that instant, a new task starts, and a
    fresh empty note field opens.
 4. **Return to earlier work: find it and press its ▶.** It might be three tasks back, or from
-   yesterday. A new session starts on that task with its own empty note. If you never type
-   in it, it counts as "continuation of previous work."
-5. **Fill in the rest whenever.** Title, client and work type can be added during the work, or
+   yesterday. A new session starts on that task with its own empty note (or the last one
+   reopens, if it ended within 10 minutes). If you never type in it, it counts as
+   "continuation of previous work."
+5. **Juggling? Start it alongside.** Waiting on a reboot while helping a coworker: both run, as
+   stacked cards, with the most recently started on top.
+6. **Fill in the rest whenever.** Title, client and work type can be added during the work, or
    later from the Day report.
 
 ### The verbs
 
 | Verb | Effect |
 |---|---|
-| **▶ New** | Start a new task now, note field focused. *The primary button everywhere.* |
-| **▶ Continue** | Start a new session on an existing task (from the switcher, a list or the Client page). |
-| **Back** | Continue the task that was running just before this one. A shortcut for the most common case. |
-| **Pause** | Nothing running (lunch, driving). |
+| **▶ New** | Start a new task now, note field focused, stopping whatever's running. *The primary button everywhere.* |
+| **▶ Continue** | Start (or resume) a session on an existing task, from the switcher, a list or the Client page. |
+| **Alongside** | Either of the above without stopping anything: "+ Also working on…", or Shift on desktop. |
+| **Stop** | Per running card, per list row, or "Stop all". |
 | **+ Inbox** | Add an unstarted task (title, optional client) without touching the clock. |
+
+*Back was tried and removed. The switcher's recent-first list plus running several tasks at once
+covered the same need without taking up space.*
 
 ### Finding tasks is a first-class feature
 
@@ -211,9 +230,9 @@ pressing ▶ New.
 
 ### Surfaces
 
-1. **Now bar**: running task, live timer, the session's **note field**, and ▶ New / Switcher /
-   Back / Pause. On desktop this is a small always-on-top window. On the phone it's the top of
-   the main screen.
+1. **Now stack**: one card per running task (timer, title, client, work type, **note field**,
+   Stop), newest on top. On desktop this becomes a small always-on-top window. On the phone it's
+   the top of the main screen.
 2. **Switcher** (above).
 3. **Inbox**: unstarted tasks, by client.
 4. **Clients**: list → Client page (tasks, inbox, recent sessions).
@@ -308,7 +327,8 @@ global hotkeys and a tray icon. A browser tab also works as a fallback.
 | Scratchpad editor | Markdown-first editor (e.g. Milkdown or CodeMirror 6 live preview) | Rich editing with plain markdown stored. Picked when that milestone comes up. |
 | Desktop | Tauri | Always-on-top, global hotkeys, tray. Same UI code. |
 | Server | Node + Hono | Small, typed, easy to run as a Windows service. |
-| DB | SQLite via Drizzle | Typed schema + migrations. |
+| DB | SQLite via better-sqlite3, plain SQL | Four small tables don't need an ORM. Numbered migrations in `server/src/db.ts`. |
+| Sync | Ops + shared reducer | Every change is an op. The client applies it instantly and queues it; the server applies the same op with the same code (`shared/src/reducer.ts`), persists it, and pushes the result to every device over SSE. |
 
 ## 10. Integrations
 
@@ -348,9 +368,9 @@ always kept.
 
 | # | Goal | Done when… |
 |---|---|---|
-| **M1** | Core loop | Server on mini PC + web UI on iPhone and desktop browser. ▶ New / ▶ Continue / Back / Pause, note field on the Now bar. Switcher with recent-first search + client filter. Inbox. Time picker, manual sessions, deduct. Groups + categories as local lists (labels "Client"/"Work Type"). Task detail by day, Day report, Client page. Plain-text export. Outbox in place. |
+| **M1** | Core loop | Server on mini PC + web UI on iPhone and desktop browser. ▶ New / ▶ Continue / alongside / Stop, stacked running cards with notes, blip discard, resume-within-gap, session merge. Switcher with recent-first search + client filter. Inbox. Time picker, manual sessions, deduct. Groups + categories as local lists (labels "Client"/"Work Type"). Task detail by day, Day report, Client page. Plain-text export. Outbox in place. |
 | **M2** | Hands-free capture | Shortcuts endpoints → Back Tap, Control Center, Siri note. |
-| **M3** | Desktop presence | Tauri: always-on-top Now bar, global hotkeys (▶ New, Switcher, Back), tray. |
+| **M3** | Desktop presence | Tauri: always-on-top Now bar, global hotkeys (▶ New, Switcher, Stop), tray. |
 | **M4** | Bad-signal hardening | Airplane-mode test on iPhone, no lost ops, "pending sync" indicator. |
 | **M5** | CW read | Client mapping, work types, ticket lookup by ref. |
 | **M6** | CW write | Push sessions as time entries from the Day report. |

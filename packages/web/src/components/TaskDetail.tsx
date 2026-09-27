@@ -1,0 +1,183 @@
+import { durationMs, startOfDay, type Id, type Session } from "@fieldtime/shared";
+import { useState } from "react";
+import { dayLabel, hm, timeOfDay } from "../format";
+import { useA, useM, useNow } from "../model";
+import { Dialog } from "./Dialog";
+import { DraftInput, DraftTextarea, GroupPicker } from "./fields";
+
+// Everything about one task: its fields, and its sessions grouped by day.
+// Tap a session, then another: everything between is selected and can be merged.
+// (Editing session times comes in the editing milestone.)
+
+export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => void }) {
+  const m = useM();
+  const a = useA();
+  const now = useNow(1000);
+  const [anchor, setAnchor] = useState<number | null>(null);
+  const [edge, setEdge] = useState<number | null>(null);
+  const info = m.tasks.get(taskId);
+  if (!info) return null;
+  const { task } = info;
+  const running = m.running.find((s) => s.taskId === taskId);
+  const catName = (id: Id | null) => (id ? m.view.categories[id]?.name : undefined);
+
+  // Selection is a range over the task's sessions in time order.
+  const chrono = info.sessions;
+  const lo = anchor === null ? -1 : Math.min(anchor, edge ?? anchor);
+  const hi = anchor === null ? -1 : Math.max(anchor, edge ?? anchor);
+  const selected = anchor === null ? [] : chrono.slice(lo, hi + 1);
+  const sameDay = selected.every((s) => startOfDay(s.start) === startOfDay(selected[0]!.start));
+  const clear = () => {
+    setAnchor(null);
+    setEdge(null);
+  };
+  const tap = (i: number) => {
+    if (anchor === null || edge !== null) {
+      // Start a new selection (or clear if tapping the lone selected one).
+      if (anchor === i && edge === null) return clear();
+      setAnchor(i);
+      setEdge(null);
+    } else if (i === anchor) clear();
+    else setEdge(i);
+  };
+
+  const days = new Map<number, { s: Session; i: number }[]>();
+  for (let i = chrono.length - 1; i >= 0; i--) {
+    const s = chrono[i]!;
+    const d = startOfDay(s.start);
+    days.set(d, [...(days.get(d) ?? []), { s, i }]);
+  }
+
+  return (
+    <Dialog title="Task" onClose={onClose} className="detail">
+      <div className="stack">
+        <DraftInput
+          className="title-input"
+          value={task.title}
+          placeholder={info.titleDerived ? info.title : "Title"}
+          aria-label="Title"
+          onValue={(title) => a.updateTask(taskId, { title })}
+        />
+        <div className="row-actions">
+          <GroupPicker value={task.groupId} onChange={(groupId) => a.updateTask(taskId, { groupId })} />
+          <DraftInput
+            className="ref-input"
+            value={task.ref}
+            placeholder="Ticket #"
+            aria-label="Ticket or reference"
+            onValue={(ref) => a.updateTask(taskId, { ref })}
+          />
+        </div>
+        <DraftTextarea
+          className="description"
+          value={task.description}
+          placeholder="Description (optional context)"
+          aria-label="Description"
+          onValue={(description) => a.updateTask(taskId, { description })}
+        />
+        <div className="row-actions">
+          {running ? (
+            <button className="btn" onClick={() => a.stop(running.id)}>
+              <span className="live-dot" aria-hidden /> Stop
+            </button>
+          ) : (
+            <button
+              className="btn primary"
+              onClick={(e) => {
+                a.continueTask(taskId, e.shiftKey);
+                onClose();
+              }}
+            >
+              ▶ {info.sessions.length ? "Continue" : "Start"}
+            </button>
+          )}
+          <span className="spacer" />
+          {task.status === "open" ? (
+            <button className="btn" onClick={() => a.updateTask(taskId, { status: "done" })}>
+              Mark done
+            </button>
+          ) : (
+            <button className="btn" onClick={() => a.updateTask(taskId, { status: "open" })}>
+              Reopen
+            </button>
+          )}
+          {task.status !== "archived" && (
+            <button
+              className="btn"
+              onClick={() => {
+                a.updateTask(taskId, { status: "archived" });
+                onClose();
+              }}
+            >
+              Archive
+            </button>
+          )}
+        </div>
+      </div>
+
+      {chrono.length > 1 && (
+        <div className={`merge-bar ${selected.length ? "on" : ""}`} role="status">
+          {selected.length === 0 ? (
+            <span className="muted small">Tap two sessions to select them and everything between, then merge.</span>
+          ) : (
+            <>
+              <span>
+                <strong>{selected.length}</strong> selected ·{" "}
+                {hm(selected.reduce((t, s) => t + durationMs(s, now), 0))}
+                {!sameDay && <span className="warn"> · must be the same day</span>}
+              </span>
+              <span className="spacer" />
+              <button className="btn" onClick={clear}>
+                Clear
+              </button>
+              <button
+                className="btn primary"
+                disabled={selected.length < 2 || !sameDay}
+                onClick={() => {
+                  a.mergeSessions(selected.map((s) => s.id));
+                  clear();
+                }}
+              >
+                Merge
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      <div className="days">
+        {chrono.length === 0 && <p className="empty">Not started yet.</p>}
+        {[...days].map(([day, rows]) => (
+          <section key={day}>
+            <h3>
+              {dayLabel(day)}{" "}
+              <span className="muted">{hm(rows.reduce((t, r) => t + durationMs(r.s, now), 0))}</span>
+            </h3>
+            <ul>
+              {rows.map(({ s, i }) => {
+                const on = i >= lo && i <= hi;
+                return (
+                  <li key={s.id}>
+                    <button
+                      className={`session ${on ? "selected" : ""}`}
+                      aria-pressed={on}
+                      onClick={() => tap(i)}
+                    >
+                      <span className="muted small">
+                        {timeOfDay(s.start)}–{s.end ? timeOfDay(s.end) : "now"} · {hm(durationMs(s, now))}
+                        {catName(s.categoryId) && ` · ${catName(s.categoryId)}`}
+                      </span>
+                      <span className={`pre ${s.notes ? "" : "muted"}`}>
+                        {s.notes || "Continuation of previous work"}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </Dialog>
+  );
+}
