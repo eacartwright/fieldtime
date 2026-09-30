@@ -336,8 +336,11 @@ global hotkeys and a tray icon. A browser tab also works as a fallback.
 - **Server**: runs on the always-on mini PC (the N97 is far more than enough). It owns the data,
   enforces the invariant, and holds all external credentials.
 - **Database**: **SQLite**, one file. Nightly backup (`VACUUM INTO`) to OneDrive or similar.
-- **Reachability**: **Tailscale** on the mini PC, iPhone and laptops. `tailscale serve` provides
-  HTTPS. A simple API token protects the endpoints anyway.
+- **Reachability**: public at `https://fieldtime.<domain>` through a **Cloudflare Tunnel**, with
+  **Cloudflare Access** as the login (only my email). There's no port forward, so it works from
+  any network, including the work PC, with nothing installed there. Tailscale remains the private
+  path for development and admin. See [docs/home-hosting.md](docs/home-hosting.md). A simple
+  API token can still protect the endpoints on the home LAN later.
 - **Clients hold a local copy + an outbox.** Every action is written locally first, with its real
   timestamp, then sent when reachable. This is designed in from M1.
 - **Conflicts**: single user, so rare. Ops are applied in timestamp order, and the most recent

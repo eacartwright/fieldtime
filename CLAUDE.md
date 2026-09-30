@@ -65,13 +65,17 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 
 - Done: M1 core loop — ▶ New / continue / alongside / stop, stacked running cards, switcher
   (Ctrl+K), inbox, task detail with merge, live sync, outbox.
-- Next: deploy to the always-on mini PC over **Tailscale** (`tailscale serve` for HTTPS so the
-  iPhone can install the PWA), auto-start + nightly DB backup. Then **M1.5 Day calendar**
+- Next: deploy to the always-on mini PC behind **Cloudflare Tunnel + Access**
+  ([docs/home-hosting.md](docs/home-hosting.md)), auto-start + nightly DB backup. Then **M1.5 Day calendar**
   (drag/resize sessions, fill gaps), which should carry most of M1's remaining time editing,
   Day report, and copy-for-ConnectWise export.
 
 ## Working with Evan
 
 - Commit and push only when asked.
+- Prefers the Claude desktop app / claude.ai over the terminal. Development is moving to the mini
+  PC and gets reached through Remote Control from the other devices; see
+  [docs/mini-pc-setup.md](docs/mini-pc-setup.md). Give GUI steps, not shell commands, where
+  possible.
 - Uses two Windows PCs (desktop + another) and an iPhone 13; the mini PC (Intel N97, Win 11)
   will host the server.
