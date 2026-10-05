@@ -1,5 +1,8 @@
 # Hosting apps from home
 
+> The concrete steps for this setup (mini PC, `fieldtime.evans.tools`) are in
+> [deploy-evans-tools.md](deploy-evans-tools.md). This page explains the approach.
+
 The mini PC hosts fieldtime, and later any other personal app, so each is reachable from
 anywhere at `https://<app>.<yourdomain>` behind one login. There are no router changes and no
 open ports.
