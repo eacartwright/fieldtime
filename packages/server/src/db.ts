@@ -1,7 +1,7 @@
-import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import type { Category, Changes, Group, Session, State, Task } from "@fieldtime/shared";
+import { DEFAULT_SETTINGS, type Category, type Changes, type Group, type Session, type Settings, type State, type Task } from "@fieldtime/shared";
 
 // SQLite persistence. Plain tables with one row per entity, so the file stays
 // readable in any SQLite browser. Schema changes go in MIGRATIONS, in order.
@@ -58,23 +58,39 @@ const MIGRATIONS: string[] = [
   `,
   // Sessions merged away or discarded as blips are flagged rather than removed, so the change syncs.
   `ALTER TABLE sessions ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0;`,
+  // When a session was marked as entered into the external system (CW).
+  `ALTER TABLE sessions ADD COLUMN entered_at INTEGER;`,
+  // Paused tasks stay on the Now stack until stopped.
+  `ALTER TABLE tasks ADD COLUMN paused_at INTEGER;`,
 ];
 
-export type DB = Database.Database;
+export type DB = DatabaseSync;
 
 export function openDb(file: string): DB {
   mkdirSync(dirname(file), { recursive: true });
-  const db = new Database(file);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  const version = db.pragma("user_version", { simple: true }) as number;
+  const db = new DatabaseSync(file);
+  db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
+  const { user_version: version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
   for (let v = version; v < MIGRATIONS.length; v++) {
-    db.transaction(() => {
+    transaction(db, () => {
       db.exec(MIGRATIONS[v]!);
-      db.pragma(`user_version = ${v + 1}`);
-    })();
+      db.exec(`PRAGMA user_version = ${v + 1}`);
+    });
   }
   return db;
+}
+
+/** Run `fn` in a write transaction; rolls back if it throws. */
+export function transaction<T>(db: DB, fn: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
 }
 
 export function getRev(db: DB): number {
@@ -89,7 +105,9 @@ export function setRev(db: DB, rev: number) {
 }
 
 export function loadState(db: DB): State {
-  const state: State = { groups: {}, categories: {}, tasks: {}, sessions: {} };
+  const row = db.prepare("SELECT value FROM meta WHERE key = 'settings'").get() as { value: string } | undefined;
+  const settings: Settings = { ...DEFAULT_SETTINGS, ...(row ? (JSON.parse(row.value) as Partial<Settings>) : {}) };
+  const state: State = { groups: {}, categories: {}, tasks: {}, sessions: {}, settings };
   for (const r of db.prepare("SELECT * FROM groups").all() as any[]) {
     state.groups[r.id] = {
       id: r.id,
@@ -111,6 +129,7 @@ export function loadState(db: DB): State {
       ref: r.ref,
       description: r.description,
       status: r.status,
+      pausedAt: r.paused_at,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       rev: r.rev,
@@ -125,6 +144,7 @@ export function loadState(db: DB): State {
       deductMin: r.deduct_min,
       notes: r.notes,
       categoryId: r.category_id,
+      enteredAt: r.entered_at,
       deleted: !!r.deleted,
       updatedAt: r.updated_at,
       rev: r.rev,
@@ -138,12 +158,17 @@ export function saveChanges(db: DB, c: Changes) {
     VALUES (@id, @name, @archived, @createdAt, @updatedAt, @rev)`);
   const cat = db.prepare(`INSERT OR REPLACE INTO categories (id, name, position, archived, rev)
     VALUES (@id, @name, @position, @archived, @rev)`);
-  const t = db.prepare(`INSERT OR REPLACE INTO tasks (id, title, group_id, ref, description, status, created_at, updated_at, rev)
-    VALUES (@id, @title, @groupId, @ref, @description, @status, @createdAt, @updatedAt, @rev)`);
-  const s = db.prepare(`INSERT OR REPLACE INTO sessions (id, task_id, start, "end", deduct_min, notes, category_id, deleted, updated_at, rev)
-    VALUES (@id, @taskId, @start, @end, @deductMin, @notes, @categoryId, @deleted, @updatedAt, @rev)`);
+  const t = db.prepare(`INSERT OR REPLACE INTO tasks (id, title, group_id, ref, description, status, paused_at, created_at, updated_at, rev)
+    VALUES (@id, @title, @groupId, @ref, @description, @status, @pausedAt, @createdAt, @updatedAt, @rev)`);
+  const s = db.prepare(`INSERT OR REPLACE INTO sessions (id, task_id, start, "end", deduct_min, notes, category_id, entered_at, deleted, updated_at, rev)
+    VALUES (@id, @taskId, @start, @end, @deductMin, @notes, @categoryId, @enteredAt, @deleted, @updatedAt, @rev)`);
   for (const x of c.groups) g.run({ ...x, archived: x.archived ? 1 : 0 } satisfies Record<keyof Group, unknown>);
   for (const x of c.categories) cat.run({ ...x, archived: x.archived ? 1 : 0 } satisfies Record<keyof Category, unknown>);
-  for (const x of c.tasks) t.run(x satisfies Task);
-  for (const x of c.sessions) s.run({ ...x, deleted: x.deleted ? 1 : 0 } satisfies Record<keyof Session, unknown>);
+  for (const x of c.tasks) t.run({ ...x, pausedAt: x.pausedAt ?? null } satisfies Task);
+  if (c.settings) {
+    db.prepare(
+      "INSERT INTO meta (key, value) VALUES ('settings', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+    ).run(JSON.stringify(c.settings));
+  }
+  for (const x of c.sessions) s.run({ ...x, enteredAt: x.enteredAt ?? null, deleted: x.deleted ? 1 : 0 } satisfies Record<keyof Session, unknown>);
 }

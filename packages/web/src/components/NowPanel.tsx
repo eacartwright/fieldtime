@@ -1,14 +1,16 @@
-import { durationMs, type Session } from "@fieldtime/shared";
+import { durationMs, firstLine, type Id, type Session } from "@fieldtime/shared";
 import { clock, dayLabel, hm, timeOfDay } from "../format";
 import { taskTotals, useA, useM, useNow, type TaskInfo } from "../model";
 import { CategorySelect, DraftInput, DraftTextarea, GroupPicker } from "./fields";
 
-// The top of the app: one card per running task, most recently started on top.
+// The top of the app: one card per running task, most recently started on top,
+// then a compact card per paused task. Pausing (or switching away) keeps a task here;
+// only Stop takes it off.
 // Cards are keyed by position, not by session, so the top card's notes textarea
 // stays mounted across switches (and while idle). That lets ▶ New focus it inside
 // the tap itself, which is what makes the iPhone keyboard appear.
 
-export function NowPanel({ onAlongside }: { onAlongside: () => void }) {
+export function NowPanel({ onAlongside, onOpen }: { onAlongside: () => void; onOpen: (taskId: Id) => void }) {
   const m = useM();
   const a = useA();
   const now = useNow(1000);
@@ -19,12 +21,22 @@ export function NowPanel({ onAlongside }: { onAlongside: () => void }) {
       {cards.map((s, i) => (
         <NowCard key={i} session={s} top={i === 0} now={now} />
       ))}
-      {m.running.length > 0 && (
+      {m.paused.map((info) => (
+        <PausedCard key={info.task.id} info={info} now={now} onOpen={onOpen} />
+      ))}
+      {(m.running.length > 0 || m.paused.length > 0) && (
         <div className="now-foot">
-          <button className="btn subtle" onClick={onAlongside} title="Start another task without stopping this one (Alt+Shift+N for a blank one)">
-            + Also working on…
-          </button>
+          {m.running.length > 0 && (
+            <button className="btn subtle" onClick={onAlongside} title="Start another task without stopping this one (Alt+Shift+N for a blank one)">
+              + Also working on…
+            </button>
+          )}
           {m.running.length > 1 && (
+            <button className="btn subtle pause-all" onClick={() => a.pause()} title="Pause everything running; they stay here">
+              ❚❚ Pause all
+            </button>
+          )}
+          {m.running.length + m.paused.length > 1 && (
             <button className="btn subtle" onClick={() => a.stop()}>
               Stop all
             </button>
@@ -107,8 +119,16 @@ function RunningHead({ session, info, now }: { session: Session; info: TaskInfo;
           {clock(now - session.start)}
         </span>
         <span className="spacer" />
-        <button className="btn" onClick={() => a.stop(session.id)} title="Stop (Alt+P stops the top one)">
-          Stop
+        <button className="btn pause" onClick={() => a.pause(session.id)} title="Pause: stop the clock, keep it here (Alt+P pauses the top one)">
+          ❚❚ Pause
+        </button>
+        <button
+          className="btn subtle icon"
+          onClick={() => a.stop({ sessionId: session.id, taskId: info.task.id })}
+          title="Stop and take it off the Now stack"
+          aria-label="Stop"
+        >
+          ■
         </button>
       </div>
       <div className="muted small since">
@@ -127,5 +147,37 @@ function RunningHead({ session, info, now }: { session: Session; info: TaskInfo;
         <CategorySelect value={session.categoryId} onChange={(categoryId) => a.updateSession(session.id, { categoryId })} />
       </div>
     </>
+  );
+}
+
+function PausedCard({ info, now, onOpen }: { info: TaskInfo; now: number; onOpen: (taskId: Id) => void }) {
+  const a = useA();
+  const last = info.sessions[info.sessions.length - 1];
+  const meta = [info.group?.name, `paused ${timeOfDay(info.task.pausedAt!)}`, `${hm(taskTotals(info, now).today)} today`].filter(Boolean);
+  // An untitled task already shows its notes as the title.
+  const preview = last && !info.titleDerived ? firstLine(last.notes) : "";
+  return (
+    <section className="now is-paused" aria-label={`Paused: ${info.title}`}>
+      <span className="pause-mark" aria-hidden>
+        ❚❚
+      </span>
+      <button className="paused-main" onClick={() => onOpen(info.task.id)} title="Open details">
+        <span className={`row-title ${info.titleDerived ? "derived" : ""}`}>{info.title}</span>
+        <span className="row-meta">{meta.join(" · ")}</span>
+        {preview && <span className="row-meta">{preview}</span>}
+      </button>
+      <button
+        className="btn resume"
+        // Like the list's ▶: adds to what's running; Shift switches (pauses the others).
+        onClick={(e) => a.continueTask(info.task.id, !e.shiftKey)}
+        title="Resume alongside what's running (Shift+click to switch to just this)"
+        aria-label={`Resume ${info.title}`}
+      >
+        ▶<span className="resume-label"> Resume</span>
+      </button>
+      <button className="btn subtle icon" onClick={() => a.stop({ taskId: info.task.id })} title="Stop and take it off the Now stack" aria-label={`Stop ${info.title}`}>
+        ■
+      </button>
+    </section>
   );
 }

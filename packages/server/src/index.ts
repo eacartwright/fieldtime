@@ -3,17 +3,22 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { OP_TYPES, type OpEnvelope } from "@fieldtime/shared";
+import { startBackups } from "./backup";
 import { openDb } from "./db";
 import { profile, seedCategories } from "./profile";
 import { Store } from "./store";
 
 const PORT = Number(process.env.PORT ?? 8787);
 const DB_FILE = process.env.FIELDTIME_DB ?? fileURLToPath(new URL("../../../data/fieldtime.db", import.meta.url));
+const BACKUP_DIR = process.env.FIELDTIME_BACKUP_DIR ?? join(dirname(DB_FILE), "backups");
 const WEB_DIST = fileURLToPath(new URL("../../web/dist", import.meta.url));
 
-const store = new Store(openDb(DB_FILE));
+const db = openDb(DB_FILE);
+const store = new Store(db);
+const backups = startBackups(db, BACKUP_DIR);
 if (Object.keys(store.state.categories).length === 0) {
   store.seed({ groups: [], categories: seedCategories(), tasks: [], sessions: [] });
 }
@@ -25,6 +30,8 @@ function isOpEnvelope(x: any): x is OpEnvelope {
 }
 
 const app = new Hono();
+
+app.get("/api/health", (c) => c.json({ ok: true, rev: store.rev, lastBackup: backups.latest() }));
 
 app.get("/api/state", (c) =>
   c.json({
@@ -59,10 +66,16 @@ app.get("/api/events", (c) =>
 
 // In production the server also serves the built web app.
 if (existsSync(WEB_DIST)) {
+  // Built assets have hashed names and never change. Everything else (index.html,
+  // the manifest) must be revalidated, or the iPhone PWA keeps running an old build.
+  app.use("/*", async (c, next) => {
+    await next();
+    c.header("Cache-Control", c.req.path.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache");
+  });
   app.use("/*", serveStatic({ root: WEB_DIST }));
   app.get("*", serveStatic({ path: `${WEB_DIST}/index.html` }));
 }
 
 serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, (info) => {
-  console.log(`fieldtime server on http://localhost:${info.port}  (db: ${DB_FILE})`);
+  console.log(`fieldtime server on http://localhost:${info.port}  (db: ${DB_FILE}, backups: ${BACKUP_DIR})`);
 });

@@ -7,11 +7,13 @@ import {
   openSessions,
   overlapMs,
   sessionsByTask,
+  settingsOf,
   startOfDay,
   type Group,
   type Id,
   type Session,
   type SessionPatch,
+  type Settings,
   type State,
   type Task,
   type TaskPatch,
@@ -39,8 +41,11 @@ export interface Model extends Snapshot {
   recent: TaskInfo[];
   /** Running sessions, the one most recently started on this device first. */
   running: Session[];
+  /** Paused tasks (clock stopped, still on the Now stack), most recently paused first. */
+  paused: TaskInfo[];
   groups: Group[];
   categories: { id: Id; name: string }[];
+  settings: Settings;
 }
 
 // Task ids in the order they were started on this device, most recent first.
@@ -82,17 +87,23 @@ function derive(snap: Snapshot): Model {
     return i < 0 ? Infinity : i;
   };
   const running = openSessions(v).sort((a, b) => rank(a) - rank(b) || b.start - a.start);
+  const runningIds = new Set(running.map((s) => s.taskId));
+  const paused = [...tasks.values()]
+    .filter((t) => t.task.pausedAt && !runningIds.has(t.task.id))
+    .sort((a, b) => b.task.pausedAt! - a.task.pausedAt!);
   return {
     ...snap,
     tasks,
     recent,
     running,
+    paused,
     groups: Object.values(v.groups)
       .filter((g) => !g.archived)
       .sort((a, b) => a.name.localeCompare(b.name)),
     categories: Object.values(v.categories)
       .filter((c) => !c.archived)
       .sort((a, b) => a.position - b.position),
+    settings: settingsOf(v),
   };
 }
 
@@ -129,13 +140,16 @@ export interface Actions {
   startNew(title?: string, groupId?: Id | null, alongside?: boolean): Id | undefined;
   /** ▶ on an existing task. */
   continueTask(taskId: Id, alongside?: boolean): void;
-  /** Stop one session, or everything if none given. */
-  stop(sessionId?: Id): void;
+  /** Stop the clock but keep the task on the Now stack; everything running if none given. */
+  pause(sessionId?: Id): void;
+  /** Stop a task (its running session, if any) and take it off the Now stack; everything if none given. */
+  stop(target?: { sessionId?: Id; taskId?: Id }): void;
   addInbox(title: string, groupId: Id | null): void;
   updateTask(taskId: Id, patch: TaskPatch): void;
   updateSession(sessionId: Id, patch: SessionPatch): void;
   mergeSessions(sessionIds: Id[]): void;
   createGroup(name: string): Id;
+  updateSettings(patch: { blipSec?: number; resumeGapMin?: number }): void;
   /** The top running card's notes field. */
   notesRef: React.RefObject<HTMLTextAreaElement | null>;
 }
@@ -175,8 +189,11 @@ export function useActionsFactory(): Actions {
         focusNotes(false);
         sync.dispatch({ type: "task.start", taskId, sessionId: newId(), mode: alongside ? "alongside" : "switch" });
       },
-      stop(sessionId) {
-        sync.dispatch({ type: "timer.stop", sessionId });
+      pause(sessionId) {
+        sync.dispatch({ type: "timer.pause", sessionId });
+      },
+      stop(target) {
+        sync.dispatch({ type: "timer.stop", ...target });
       },
       addInbox(title, groupId) {
         sync.dispatch({ type: "task.create", taskId: newId(), title, groupId });
@@ -194,6 +211,9 @@ export function useActionsFactory(): Actions {
         const groupId = newId();
         sync.dispatch({ type: "group.create", groupId, name: name.trim() });
         return groupId;
+      },
+      updateSettings(patch) {
+        sync.dispatch({ type: "settings.update", patch });
       },
     };
   }, []);

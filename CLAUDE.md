@@ -23,7 +23,7 @@ Browser checks: `playwright-core` with `channel: "msedge"` (Edge is installed; n
 ## Architecture
 
 - `packages/shared` — types, ops, **the reducer**, derived views. Used by both server and client.
-- `packages/server` — Node + Hono + better-sqlite3. Applies op batches idempotently (op ids
+- `packages/server` — Node + Hono + `node:sqlite` (built in; needs Node ≥ 22.13). Applies op batches idempotently (op ids
   recorded in `ops` table), persists touched entities, bumps a global `rev`, pushes changes over SSE.
 - `packages/web` — React + Vite. `sync.ts`: view = server state + pending ops replayed through the
   same reducer; pending ops persist in localStorage before sending (the outbox).
@@ -38,10 +38,18 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 ## Rules the reducer enforces (see DESIGN.md §5–6)
 
 - Each task has at most one open session; several tasks may run at once.
-- `task.start` mode: `switch` (default) stops others at the same instant; `alongside` doesn't.
-  UI: ▶ New and the switcher switch; ▶ on a list row / task details adds alongside; Shift inverts.
-- Blips (< 30 s, no notes, not the task's only session) are discarded when they end.
-- Continuing a task within 10 min of its last session reopens that session.
+- `task.start` mode: `switch` (default) stops others at the same instant and marks them
+  **paused** (`task.pausedAt`, they stay on the Now stack); `alongside` doesn't.
+- `timer.pause` stops a session and marks its task paused. `timer.stop` (with `sessionId` and/or
+  `taskId`, or neither = everything) also clears paused. Starting a task clears it.
+  UI: ▶ New and the switcher switch; ▶ on a list row / task details and ▶ Resume on a paused card
+  add alongside; Shift inverts.
+- Blips (< `settings.blipSec`, default 30 s; no notes; not the task's only session) are discarded
+  when they end.
+- Continuing a task within `settings.resumeGapMin` (default 10) of its last session reopens it.
+- Settings live in `state.settings` (read with `settingsOf()`; old cached states lack it), change
+  via the `settings.update` op, persist as JSON in the server's `meta` table, sync like
+  anything else. 0 turns a rule off.
 - Merge: same task, earliest start → latest end, non-empty notes joined. UI limits to one day.
 - Start/stop use timeline semantics, so ops arriving late from an offline phone land correctly.
 
@@ -65,17 +73,22 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 
 - Done: M1 core loop — ▶ New / continue / alongside / stop, stacked running cards, switcher
   (Ctrl+K), inbox, task detail with merge, live sync, outbox.
-- Next: deploy to the always-on mini PC behind **Cloudflare Tunnel + Access**
-  ([docs/home-hosting.md](docs/home-hosting.md)), auto-start + nightly DB backup. Then **M1.5 Day calendar**
-  (drag/resize sessions, fill gaps), which should carry most of M1's remaining time editing,
-  Day report, and copy-for-ConnectWise export.
+- Done: **Pause** (prominent; keeps tasks on the Now stack as paused cards) vs **Stop** (takes
+  them off).
+- Done: **Time entries** sheet (Alt+E): per-session CW fields, click-to-copy, To enter / By day,
+  Mark entered (`session.enteredAt`).
+- Deploy kit done and rehearsed on DEVvm: daily backups, `/api/health`, cache headers, PNG
+  icons, "Signed out" detection, `scripts/install.ps1` / `update.ps1` / `run.cmd`.
+- Next: run the install on the mini PC + Cloudflare Tunnel/Access
+  ([docs/home-hosting.md](docs/home-hosting.md)). Then **M1.5 Day calendar**
+  (drag/resize sessions, fill gaps), which should carry most of M1's remaining time editing.
 
 ## Working with Evan
 
 - Commit and push only when asked.
-- Prefers the Claude desktop app / claude.ai over the terminal. Development is moving to the mini
-  PC and gets reached through Remote Control from the other devices; see
-  [docs/mini-pc-setup.md](docs/mini-pc-setup.md). Give GUI steps, not shell commands, where
-  possible.
-- Uses two Windows PCs (desktop + another) and an iPhone 13; the mini PC (Intel N97, Win 11)
-  will host the server.
+- Prefers the Claude desktop app / claude.ai over the terminal. Give GUI steps, not shell
+  commands, where possible.
+- Develops on **DEVvm** (Win 11 VM in VMware Workstation). Claude has full control of it: install
+  tools, run servers, drive Edge. Git Bash doesn't see `node`; use PowerShell.
+- Uses two Windows PCs and an iPhone 13; the mini PC (Intel N97, Win 11) hosts the real app at
+  `C:\Apps\fieldtime`, port 8080.

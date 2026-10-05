@@ -6,7 +6,7 @@ import {
   type OpEnvelope,
   type State,
 } from "@fieldtime/shared";
-import { getRev, loadState, saveChanges, setRev, type DB } from "./db";
+import { getRev, loadState, saveChanges, setRev, transaction, type DB } from "./db";
 
 // The authoritative state: held in memory, persisted to SQLite on every change.
 
@@ -33,21 +33,22 @@ export class Store {
     let changes: Changes;
 
     try {
-      this.db.transaction(() => {
+      transaction(this.db, () => {
         for (const env of ops) {
           if (seen.get(env.id)) continue;
           applyOp(this.state, env, touched);
           record.run(env.id, env.at, Date.now(), JSON.stringify(env.op));
         }
         changes = collectChanges(this.state, touched);
-        const all = [...changes.groups, ...changes.categories, ...changes.tasks, ...changes.sessions];
+        const all: { rev: number }[] = [...changes.groups, ...changes.categories, ...changes.tasks, ...changes.sessions];
+        if (changes.settings) all.push(changes.settings);
         if (all.length) {
           this.rev += 1;
           for (const e of all) e.rev = this.rev;
           saveChanges(this.db, changes);
           setRev(this.db, this.rev);
         }
-      })();
+      });
     } catch (err) {
       // The in-memory state may be ahead of the database now; resync from disk.
       this.state = loadState(this.db);
@@ -56,7 +57,7 @@ export class Store {
     }
 
     const c = changes!;
-    if (c.groups.length || c.categories.length || c.tasks.length || c.sessions.length) {
+    if (c.groups.length || c.categories.length || c.tasks.length || c.sessions.length || c.settings) {
       for (const fn of this.listeners) fn(this.rev, c);
     }
     return c;
@@ -64,12 +65,12 @@ export class Store {
 
   /** Insert entities directly (seeding), bypassing ops. */
   seed(changes: Changes) {
-    this.db.transaction(() => {
+    transaction(this.db, () => {
       this.rev += 1;
       for (const e of [...changes.groups, ...changes.categories, ...changes.tasks, ...changes.sessions]) e.rev = this.rev;
       saveChanges(this.db, changes);
       setRev(this.db, this.rev);
-    })();
+    });
     for (const c of changes.categories) this.state.categories[c.id] = c;
     for (const g of changes.groups) this.state.groups[g.id] = g;
   }

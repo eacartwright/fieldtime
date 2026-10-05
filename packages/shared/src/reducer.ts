@@ -1,33 +1,32 @@
 import type { OpEnvelope } from "./ops";
-import type { Changes, Id, Ms, Session, State } from "./types";
+import { settingsOf, type Changes, type Id, type Ms, type Session, type State } from "./types";
 
 // The single reducer used by both client (optimistic) and server (authoritative).
 // It mutates `state` in place and records which entities it touched.
 //
 // Rules:
 // - Several tasks may run at once, but each task has at most one open session.
-// - Starting in "switch" mode stops everything else; "alongside" leaves it running.
-// - Coming back to a task within RESUME_GAP of its last session reopens that
-//   session instead of adding a new fragment.
-// - A session under SHORT_SESSION with no notes is discarded when it ends,
+// - Starting in "switch" mode pauses everything else; "alongside" leaves it running.
+// - Paused tasks (clock stopped) stay on the Now stack until stopped or started again.
+// - Coming back to a task within settings.resumeGapMin of its last session reopens
+//   that session instead of adding a new fragment.
+// - A session under settings.blipSec with no notes is discarded when it ends,
 //   unless it's the task's only session.
 //
 // Start/stop use timeline semantics (what was running *at the op's time*), so an
 // op that reaches the server late because the phone had no signal still lands
 // where it happened.
 
-export const SHORT_SESSION_MS = 30_000;
-export const RESUME_GAP_MS = 10 * 60_000;
-
 export interface Touched {
   groups: Set<Id>;
   categories: Set<Id>;
   tasks: Set<Id>;
   sessions: Set<Id>;
+  settings: boolean;
 }
 
 export function newTouched(): Touched {
-  return { groups: new Set(), categories: new Set(), tasks: new Set(), sessions: new Set() };
+  return { groups: new Set(), categories: new Set(), tasks: new Set(), sessions: new Set(), settings: false };
 }
 
 export function collectChanges(state: State, t: Touched): Changes {
@@ -38,6 +37,7 @@ export function collectChanges(state: State, t: Touched): Changes {
     categories: pick(state.categories, t.categories),
     tasks: pick(state.tasks, t.tasks),
     sessions: pick(state.sessions, t.sessions),
+    settings: t.settings ? settingsOf(state) : null,
   };
 }
 
@@ -77,12 +77,21 @@ function inheritedCategory(state: State, taskId: Id, before: Ms): Id | null {
   return best?.categoryId ?? null;
 }
 
+function setPaused(state: State, taskId: Id, pausedAt: Ms | null, at: Ms, t: Touched) {
+  const task = state.tasks[taskId];
+  if (!task || (task.pausedAt ?? null) === pausedAt) return;
+  task.pausedAt = pausedAt;
+  task.updatedAt = at;
+  t.tasks.add(taskId);
+}
+
 function endSession(state: State, s: Session, at: Ms, t: Touched) {
   s.end = Math.max(at, s.start);
   s.updatedAt = at;
   t.sessions.add(s.id);
   // Discard blips: a few seconds on a task that already has other time, with nothing written.
-  if (s.end - s.start < SHORT_SESSION_MS && !s.notes.trim() && taskSessions(state, s.taskId).length > 1) {
+  const blipMs = settingsOf(state).blipSec * 1000;
+  if (s.end - s.start < blipMs && !s.notes.trim() && taskSessions(state, s.taskId).length > 1) {
     s.deleted = true;
   }
 }
@@ -116,6 +125,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         t.tasks.add(task.id);
       }
       const taskId = task.id;
+      setPaused(state, taskId, null, at, t);
 
       const covering = sessionsAt(state, at);
       const others = covering.filter((s) => s.taskId !== taskId);
@@ -127,7 +137,12 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       if (mode === "switch") {
         if (others.length) end = others.some((s) => s.end === null) ? null : Math.max(...others.map((s) => s.end!));
         else end = nextStartAfter(state, at);
-        for (const s of others) endSession(state, s, at, t);
+        for (const s of others) {
+          // Switching away pauses: it stays on screen. (A late switch landing inside a
+          // session that has since ended doesn't resurrect that task.)
+          if (s.end === null) setPaused(state, s.taskId, at, at, t);
+          endSession(state, s, at, t);
+        }
       }
       if (covering.some((s) => s.taskId === taskId)) break; // already running then
 
@@ -135,9 +150,10 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       const laterOwn = own.find((s) => s.start > at);
       if (laterOwn && (end === null || end > laterOwn.start)) end = laterOwn.start;
 
-      // Back on it shortly after stopping: keep going in the same session.
+      // Back on it shortly after stopping: keep going in the same session
+      // (unless it's already been entered elsewhere; that entry shouldn't change under you).
       const prev = [...own].reverse().find((s) => s.start <= at);
-      if (prev && prev.end !== null && at - prev.end <= RESUME_GAP_MS) {
+      if (prev && prev.end !== null && !prev.enteredAt && at - prev.end <= settingsOf(state).resumeGapMin * 60_000) {
         prev.end = end;
         prev.updatedAt = at;
         t.sessions.add(prev.id);
@@ -161,11 +177,27 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
     }
 
     case "timer.stop": {
-      if (op.sessionId) {
-        const s = state.sessions[op.sessionId];
+      if (op.sessionId || op.taskId) {
+        const s = op.sessionId ? state.sessions[op.sessionId] : undefined;
         if (s && !s.deleted && s.start <= at && (s.end === null || s.end > at)) endSession(state, s, at, t);
+        if (op.taskId) {
+          for (const o of sessionsAt(state, at)) if (o.taskId === op.taskId) endSession(state, o, at, t);
+        }
+        const taskId = op.taskId ?? s?.taskId;
+        if (taskId) setPaused(state, taskId, null, at, t);
       } else {
         for (const s of sessionsAt(state, at)) endSession(state, s, at, t);
+        for (const task of Object.values(state.tasks)) if (task.pausedAt) setPaused(state, task.id, null, at, t);
+      }
+      break;
+    }
+
+    case "timer.pause": {
+      const targets = op.sessionId ? [state.sessions[op.sessionId]] : openSessions(state);
+      for (const s of targets) {
+        if (!s || s.deleted || s.end !== null || s.start > at) continue;
+        setPaused(state, s.taskId, at, at, t);
+        endSession(state, s, at, t);
       }
       break;
     }
@@ -192,8 +224,9 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       if (!task) break;
       Object.assign(task, op.patch, { updatedAt: at });
       t.tasks.add(task.id);
-      // Finishing or archiving a task stops its clock.
+      // Finishing or archiving a task stops its clock and takes it off the Now stack.
       if (op.patch.status && op.patch.status !== "open") {
+        setPaused(state, task.id, null, at, t);
         for (const s of openSessions(state)) if (s.taskId === task.id) endSession(state, s, at, t);
       }
       break;
@@ -228,6 +261,8 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         .join("\n");
       target.deductMin = list.reduce((sum, s) => sum + s.deductMin, 0);
       target.categoryId = list.find((s) => s.categoryId)?.categoryId ?? null;
+      // The merged session is a different entry; it only counts as entered if every part was.
+      target.enteredAt = list.every((s) => s.enteredAt) ? Math.max(...list.map((s) => s.enteredAt!)) : null;
       target.updatedAt = at;
       t.sessions.add(target.id);
       for (const s of rest) {
@@ -257,6 +292,19 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       if (!g) break;
       Object.assign(g, op.patch, { updatedAt: at });
       t.groups.add(g.id);
+      break;
+    }
+
+    case "settings.update": {
+      const next = { ...settingsOf(state) };
+      const clamp = (v: unknown, max: number) =>
+        typeof v === "number" && Number.isFinite(v) ? Math.min(Math.max(0, Math.round(v)), max) : undefined;
+      const blip = clamp(op.patch.blipSec, 600);
+      const gap = clamp(op.patch.resumeGapMin, 240);
+      if (blip !== undefined) next.blipSec = blip;
+      if (gap !== undefined) next.resumeGapMin = gap;
+      state.settings = next;
+      t.settings = true;
       break;
     }
   }

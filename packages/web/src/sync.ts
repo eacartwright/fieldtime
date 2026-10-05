@@ -19,7 +19,8 @@ export interface Config {
   categoryLabel: string;
 }
 
-export type Connection = "connecting" | "online" | "offline";
+/** "signedout": the login in front of the server (Cloudflare Access) has expired. */
+export type Connection = "connecting" | "online" | "offline" | "signedout";
 
 export interface Snapshot {
   view: State;
@@ -32,6 +33,16 @@ export interface Snapshot {
 const CACHE_KEY = "fieldtime:cache";
 const PENDING_KEY = "fieldtime:pending";
 const KINDS = ["groups", "categories", "tasks", "sessions"] as const;
+
+class SignedOut extends Error {}
+
+/** fetch, but a redirect (to the Access login page) is reported as SignedOut instead of a CORS failure. */
+async function api(path: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(path, { ...init, redirect: "manual" });
+  if (res.type === "opaqueredirect" || res.status === 401 || res.status === 403) throw new SignedOut();
+  if (!res.ok) throw new Error(String(res.status));
+  return res;
+}
 
 function read<T>(key: string): T | null {
   try {
@@ -142,6 +153,8 @@ class Sync {
         if (!existing || e.rev >= existing.rev) rec[e.id] = e;
       }
     }
+    const st = changes.settings;
+    if (st && (!this.server.settings || st.rev >= this.server.settings.rev)) this.server.settings = st;
   }
 
   private saveCache() {
@@ -154,8 +167,7 @@ class Sync {
 
   private async fetchState() {
     try {
-      const res = await fetch("/api/state");
-      if (!res.ok) throw new Error(String(res.status));
+      const res = await api("/api/state");
       const body = (await res.json()) as { state: State; rev: number; config: Config };
       this.server = body.state;
       this.rev = body.rev;
@@ -163,8 +175,8 @@ class Sync {
       this.loaded = true;
       this.saveCache();
       this.recompute();
-    } catch {
-      this.setConnection("offline");
+    } catch (err) {
+      this.setConnection(err instanceof SignedOut ? "signedout" : "offline");
     }
   }
 
@@ -184,7 +196,12 @@ class Sync {
       this.recompute();
     });
     // EventSource reconnects on its own; "hello" on reconnect catches us up.
-    es.onerror = () => this.setConnection("offline");
+    // A failed EventSource can't say why, so ask the state endpoint, which can tell
+    // "offline" from "signed out".
+    es.onerror = () => {
+      if (this.connection !== "signedout") this.setConnection("offline");
+      void this.fetchState();
+    };
   }
 
   private scheduleFlush(delay: number) {
@@ -205,12 +222,11 @@ class Sync {
     const batch = this.pending.slice();
     for (const env of batch) this.inflight.add(env.id);
     try {
-      const res = await fetch("/api/ops", {
+      const res = await api("/api/ops", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ops: batch }),
       });
-      if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as { rev: number; changes: Changes };
       this.merge(body.changes);
       this.rev = Math.max(this.rev, body.rev);
@@ -223,9 +239,9 @@ class Sync {
       this.setConnection("online");
       this.recompute();
       if (this.pending.length) this.flush();
-    } catch {
+    } catch (err) {
       this.inflight.clear();
-      this.setConnection("offline");
+      this.setConnection(err instanceof SignedOut ? "signedout" : "offline");
       const delay = this.retryDelay;
       this.retryDelay = Math.min(this.retryDelay * 2, 30_000);
       setTimeout(() => this.flush(), delay);

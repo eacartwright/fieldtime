@@ -195,6 +195,142 @@ describe("merge", () => {
   });
 });
 
+describe("settings", () => {
+  const set = (s: State, patch: { blipSec?: number; resumeGapMin?: number }) =>
+    run(s, T0 - H, { type: "settings.update", patch });
+
+  it("blip discard can be turned off", () => {
+    const s = emptyState();
+    set(s, { blipSec: 0 });
+    startNew(s, T0, "A");
+    startNew(s, T0 + H, "B");
+    cont(s, T0 + 2 * H, "A");
+    startNew(s, T0 + 2 * H + 5 * S, "C");
+    expect(live(s, "A")).toHaveLength(2);
+  });
+
+  it("resume gap follows the setting, and 0 turns it off", () => {
+    const s = emptyState();
+    set(s, { resumeGapMin: 0 });
+    startNew(s, T0, "A");
+    startNew(s, T0 + 5 * M, "B");
+    cont(s, T0 + 6 * M, "A");
+    expect(live(s, "A")).toHaveLength(2);
+
+    const s2 = emptyState();
+    set(s2, { resumeGapMin: 30 });
+    startNew(s2, T0, "A");
+    startNew(s2, T0 + 5 * M, "B");
+    cont(s2, T0 + 25 * M, "A");
+    expect(live(s2, "A")).toHaveLength(1);
+  });
+
+  it("clamps bad values", () => {
+    const s = emptyState();
+    set(s, { blipSec: -5, resumeGapMin: 99999 });
+    expect([s.settings!.blipSec, s.settings!.resumeGapMin]).toEqual([0, 240]);
+  });
+});
+
+describe("pause", () => {
+  const pause = (s: State, at: number, sessionId: string) => run(s, at, { type: "timer.pause", sessionId });
+  const paused = (s: State) =>
+    Object.values(s.tasks)
+      .filter((t) => t.pausedAt)
+      .map((t) => t.id)
+      .sort();
+
+  it("stops the clock but keeps the task paused", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    pause(s, T0 + H, `A@${T0}`);
+    expect(span(s, `A@${T0}`)).toEqual([T0, T0 + H]);
+    expect(paused(s)).toEqual(["A"]);
+  });
+
+  it("switching pauses what was running; alongside doesn't", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    startNew(s, T0 + H, "B");
+    startNew(s, T0 + 2 * H, "C", "alongside");
+    expect(paused(s)).toEqual(["A"]);
+    expect(openTasks(s)).toEqual(["B", "C"]);
+  });
+
+  it("starting a paused task unpauses it (and resumes the same session within the gap)", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    pause(s, T0 + H, `A@${T0}`);
+    cont(s, T0 + H + 5 * M, "A");
+    expect(paused(s)).toEqual([]);
+    expect(live(s, "A")).toHaveLength(1);
+    expect(openTasks(s)).toEqual(["A"]);
+  });
+
+  it("stopping a paused task takes it off the stack", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    startNew(s, T0 + H, "B");
+    run(s, T0 + 2 * H, { type: "timer.stop", taskId: "A" });
+    expect(paused(s)).toEqual([]);
+    expect(openTasks(s)).toEqual(["B"]);
+  });
+
+  it("pause all pauses everything running", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    startNew(s, T0 + M, "B", "alongside");
+    run(s, T0 + H, { type: "timer.pause" });
+    expect(openTasks(s)).toEqual([]);
+    expect(paused(s)).toEqual(["A", "B"]);
+    expect(span(s, `B@${T0 + M}`)).toEqual([T0 + M, T0 + H]);
+  });
+
+  it("stop all stops everything and clears paused tasks", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    startNew(s, T0 + H, "B");
+    stop(s, T0 + 2 * H);
+    expect(paused(s)).toEqual([]);
+    expect(openTasks(s)).toEqual([]);
+  });
+
+  it("a late switch landing inside a finished session doesn't pause that task", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    run(s, T0 + 2 * H, { type: "timer.stop", taskId: "A" });
+    startNew(s, T0 + H, "B"); // arrives late from the phone
+    expect(paused(s)).toEqual([]);
+  });
+});
+
+describe("entered elsewhere", () => {
+  const enter = (s: State, at: number, sessionId: string) =>
+    run(s, at, { type: "session.update", sessionId, patch: { enteredAt: at } });
+
+  it("coming back within the gap doesn't reopen a session already entered", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    startNew(s, T0 + H, "B");
+    enter(s, T0 + H + M, `A@${T0}`);
+    cont(s, T0 + H + 5 * M, "A");
+    const a = live(s, "A");
+    expect(a).toHaveLength(2);
+    expect(a[0]!.end).toBe(T0 + H);
+  });
+
+  it("a merge only counts as entered if every part was", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    startNew(s, T0 + H, "B");
+    cont(s, T0 + 2 * H, "A");
+    stop(s, T0 + 3 * H);
+    enter(s, T0 + 4 * H, `A@${T0}`);
+    run(s, T0 + 5 * H, { type: "session.merge", sessionIds: [`A@${T0}`, `A@${T0 + 2 * H}`] });
+    expect(live(s, "A")[0]!.enteredAt).toBeNull();
+  });
+});
+
 describe("late ops (phone was offline)", () => {
   it("a late switch lands between the sessions around it", () => {
     const s = emptyState();

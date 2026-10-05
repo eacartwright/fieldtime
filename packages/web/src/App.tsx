@@ -1,13 +1,21 @@
 import type { Id } from "@fieldtime/shared";
 import { useEffect, useRef, useState } from "react";
+import { Entries } from "./components/Entries";
 import { InboxAdd } from "./components/InboxAdd";
 import { NowPanel } from "./components/NowPanel";
+import { SettingsDialog } from "./components/Settings";
 import { Switcher } from "./components/Switcher";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskList } from "./components/TaskList";
 import { ActionsContext, ModelContext, useActionsFactory, useModel, type Model } from "./model";
 
-type Overlay = { kind: "switcher"; alongside?: boolean } | { kind: "inbox" } | { kind: "detail"; taskId: Id } | null;
+type Overlay =
+  | { kind: "switcher"; alongside?: boolean }
+  | { kind: "inbox" }
+  | { kind: "entries" }
+  | { kind: "settings" }
+  | { kind: "detail"; taskId: Id }
+  | null;
 
 const isTyping = (el: EventTarget | null) =>
   el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
@@ -37,10 +45,13 @@ export function App() {
             actions.startNew("", null, e.shiftKey);
           },
           KeyP: () => {
+            // Alt+P pauses the top card; Alt+Shift+P pauses everything.
             const top = modelRef.current.running[0];
-            if (top) actions.stop(top.id);
+            if (e.shiftKey) actions.pause();
+            else if (top) actions.pause(top.id);
           },
           KeyI: () => setOverlay({ kind: "inbox" }),
+          KeyE: () => setOverlay({ kind: "entries" }),
         };
         const fn = act[e.code];
         if (fn) {
@@ -78,16 +89,27 @@ export function App() {
             <button className="btn" onClick={() => setOverlay({ kind: "inbox" })} title="Add to inbox (Alt+I)">
               + Inbox
             </button>
+            <button className="btn" onClick={() => setOverlay({ kind: "entries" })} title="Time entries to copy into ConnectWise (Alt+E)">
+              Entries
+            </button>
           </nav>
+          <button className="btn icon settings-btn" onClick={() => setOverlay({ kind: "settings" })} title="Settings" aria-label="Settings">
+            <GearIcon />
+          </button>
         </header>
 
         <main className="layout">
-          <NowPanel onAlongside={() => setOverlay({ kind: "switcher", alongside: true })} />
+          <NowPanel
+            onAlongside={() => setOverlay({ kind: "switcher", alongside: true })}
+            onOpen={(taskId) => setOverlay({ kind: "detail", taskId })}
+          />
           <TaskList onOpen={(taskId) => setOverlay({ kind: "detail", taskId })} />
         </main>
 
         {overlay?.kind === "switcher" && <Switcher alongside={overlay.alongside} onClose={close} />}
         {overlay?.kind === "inbox" && <InboxAdd onClose={close} />}
+        {overlay?.kind === "entries" && <Entries onClose={close} />}
+        {overlay?.kind === "settings" && <SettingsDialog onClose={close} />}
         {overlay?.kind === "detail" && <TaskDetail taskId={overlay.taskId} onClose={close} />}
       </ActionsContext.Provider>
     </ModelContext.Provider>
@@ -98,6 +120,14 @@ function SyncBadge({ model }: { model: Model }) {
   const { connection, pending, loaded } = model;
   let text = "Synced";
   let tone = "ok";
+  if (connection === "signedout") {
+    // The outbox keeps everything; reloading goes through the login and picks up where it left off.
+    return (
+      <button className="sync sync-warn sync-signin" onClick={() => location.reload()}>
+        <span className="sync-dot" aria-hidden /> Signed out{pending ? ` · ${pending} unsent` : ""} · Sign in
+      </button>
+    );
+  }
   if (!loaded) [text, tone] = ["Loading…", "wait"];
   else if (connection === "offline") [text, tone] = [pending ? `Offline · ${pending} unsent` : "Offline", "warn"];
   else if (pending) [text, tone] = ["Saving…", "wait"];
@@ -105,5 +135,14 @@ function SyncBadge({ model }: { model: Model }) {
     <span className={`sync sync-${tone}`} role="status">
       <span className="sync-dot" aria-hidden /> {text}
     </span>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
   );
 }

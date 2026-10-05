@@ -93,7 +93,7 @@ function ResultRow({ info, now, running }: { info: TaskInfo; now: number; runnin
   const { total } = taskTotals(info, now);
   const meta = [
     info.group?.name,
-    info.task.ref && `#${info.task.ref}`,
+    info.task.ref && `#${info.task.ref.trim().replace(/^#+/, "")}`,
     info.inbox ? "inbox" : whenLabel(info.lastTouched, now),
     total > 0 && hm(total),
     info.task.status === "done" && "done",

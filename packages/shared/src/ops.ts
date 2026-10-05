@@ -1,4 +1,4 @@
-import type { Id, Ms, Session, Task } from "./types";
+import type { Id, Ms, Session, Settings, Task } from "./types";
 
 // Every change to the data is an op. Clients apply ops locally right away and
 // queue them for the server, which applies the same ops with the same reducer.
@@ -18,8 +18,13 @@ export type Op =
       newTask?: { title: string; groupId: Id | null };
       mode?: StartMode;
     }
-  /** Stop one session, or everything running if no sessionId is given. */
-  | { type: "timer.stop"; sessionId?: Id }
+  /**
+   * Stop a session and/or a task, taking it off the Now stack (running or paused).
+   * With neither, stops everything and clears every paused task.
+   */
+  | { type: "timer.stop"; sessionId?: Id; taskId?: Id }
+  /** Stop the clock on a session but keep its task on the Now stack; everything running if no sessionId. */
+  | { type: "timer.pause"; sessionId?: Id }
   /** Create a task without starting it (Inbox). */
   | { type: "task.create"; taskId: Id; title: string; groupId: Id | null }
   | { type: "task.update"; taskId: Id; patch: TaskPatch }
@@ -27,20 +32,23 @@ export type Op =
   /** Combine sessions of one task into the earliest of them. */
   | { type: "session.merge"; sessionIds: Id[] }
   | { type: "group.create"; groupId: Id; name: string }
-  | { type: "group.update"; groupId: Id; patch: { name?: string; archived?: boolean } };
+  | { type: "group.update"; groupId: Id; patch: { name?: string; archived?: boolean } }
+  | { type: "settings.update"; patch: Partial<Pick<Settings, "blipSec" | "resumeGapMin">> };
 
 export type TaskPatch = Partial<Pick<Task, "title" | "groupId" | "ref" | "description" | "status">>;
-export type SessionPatch = Partial<Pick<Session, "notes" | "categoryId" | "start" | "end" | "deductMin">>;
+export type SessionPatch = Partial<Pick<Session, "notes" | "categoryId" | "start" | "end" | "deductMin" | "enteredAt">>;
 
 export const OP_TYPES: ReadonlySet<Op["type"]> = new Set([
   "task.start",
   "timer.stop",
+  "timer.pause",
   "task.create",
   "task.update",
   "session.update",
   "session.merge",
   "group.create",
   "group.update",
+  "settings.update",
 ]);
 
 export interface OpEnvelope {

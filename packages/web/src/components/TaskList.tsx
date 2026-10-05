@@ -95,8 +95,9 @@ function TaskRow({ info, now, view, onOpen }: { info: TaskInfo; now: number; vie
   const running = m.running.find((s) => s.taskId === info.task.id);
   const { today, total } = taskTotals(info, now);
   const meta = [
+    !running && info.task.pausedAt && "Paused",
     info.group?.name,
-    info.task.ref && `#${info.task.ref}`,
+    info.task.ref && `#${info.task.ref.trim().replace(/^#+/, "")}`,
     view === "inbox" ? `added ${whenLabel(info.task.createdAt, now)}` : whenLabel(info.lastTouched, now),
     view === "today" ? `${hm(today)} today` : total > 0 && hm(total),
   ].filter(Boolean);
@@ -108,10 +109,10 @@ function TaskRow({ info, now, view, onOpen }: { info: TaskInfo; now: number; vie
         <span className="row-meta">{meta.join(" · ")}</span>
       </button>
       {running ? (
-        <button className="row-live" onClick={() => a.stop(running.id)} aria-label={`Stop ${info.title}`} title="Stop">
+        <button className="row-live" onClick={() => a.pause(running.id)} aria-label={`Pause ${info.title}`} title="Pause">
           <span className="live-dot" aria-hidden />
           <span className="row-live-label">Running</span>
-          <span className="row-live-stop">■ Stop</span>
+          <span className="row-live-stop">❚❚ Pause</span>
         </button>
       ) : (
         <button

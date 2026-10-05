@@ -13,6 +13,9 @@
   --on-primary: #ffffff;
   --running: #067a36;
   --running-bg: #e4f5ea;
+  --paused: #8f5300;
+  --paused-bg: #fdf1dc;
+  --on-paused: #ffffff;
   --warn: #a15c00;
   --focus: #1747c9;
   --radius: 10px;
@@ -36,6 +39,9 @@
     --on-primary: #08101f;
     --running: #4bd585;
     --running-bg: #10281a;
+    --paused: #ffb454;
+    --paused-bg: #2a1f0d;
+    --on-paused: #1a1000;
     --warn: #ffb454;
     --focus: #8fb6ff;
   }
@@ -139,6 +145,29 @@ select:focus {
   width: var(--tap);
   justify-content: center;
 }
+/* Pause is the everyday way out of a task, so it's the loud one; Stop stays quiet. */
+.btn.pause {
+  background: var(--paused);
+  border-color: var(--paused);
+  color: var(--on-paused);
+  padding: 0 18px;
+}
+.btn.pause:hover {
+  background: var(--paused);
+  filter: brightness(1.1);
+}
+.btn.subtle.pause-all {
+  border-color: var(--paused);
+  color: var(--paused);
+}
+.btn.resume {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.btn.resume:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+}
 
 .chip {
   min-height: 36px;
@@ -217,6 +246,14 @@ select:focus {
 .sync-warn .sync-dot {
   background: var(--warn);
 }
+.sync-signin {
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 1.5px solid var(--warn);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
 
 /* Phone: the action bar sits at the bottom, under the thumb. */
 .actionbar {
@@ -226,7 +263,7 @@ select:focus {
   bottom: 0;
   z-index: 10;
   display: grid;
-  grid-template-columns: 1fr 1.4fr 1fr;
+  grid-template-columns: 1fr 1.3fr 1fr 1fr;
   gap: 8px;
   padding: 10px 12px;
   padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
@@ -236,6 +273,7 @@ select:focus {
 .actionbar .btn {
   justify-content: center;
   min-height: 52px;
+  padding: 0 8px;
 }
 .actionbar .new {
   font-size: 1.1rem;
@@ -298,6 +336,52 @@ select:focus {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+.now.is-paused {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-color: var(--paused);
+  border-style: dashed;
+  background: var(--paused-bg);
+}
+.pause-mark {
+  color: var(--paused);
+  font-weight: 800;
+  font-size: 0.85rem;
+  flex: none;
+  width: 18px;
+  text-align: center;
+}
+.paused-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  cursor: pointer;
+}
+.paused-main .row-title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+@media (max-width: 599px) {
+  .resume-label {
+    display: none;
+  }
+  .btn.resume {
+    width: 52px;
+    padding: 0;
+    justify-content: center;
+  }
 }
 .since {
   margin-top: -6px;
@@ -783,4 +867,157 @@ select:focus {
   border-bottom: 1.5px solid var(--border);
   padding-bottom: 4px;
   margin-bottom: 8px;
+}
+
+/* ---- time entries ---- */
+.tabs.tabs-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+.day-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.day-input {
+  min-height: var(--tap);
+  padding: 0 10px;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+}
+.entry-day {
+  display: grid;
+  gap: 10px;
+}
+.entry-day h3 {
+  font-size: 0.95rem;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1.5px solid var(--border);
+  padding-bottom: 4px;
+}
+.entry {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+.entry.entered {
+  background: var(--surface-2);
+}
+.entry.entered .entry-fields {
+  opacity: 0.6;
+}
+.entry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.entry-fields {
+  display: grid;
+  gap: 4px;
+}
+.copy-field {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 6px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+}
+button.copy-field:hover {
+  border-color: var(--primary);
+}
+.copy-field.missing {
+  cursor: default;
+  border-style: dashed;
+  background: transparent;
+}
+.copy-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.copy-value {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.copy-field.multi {
+  align-items: start;
+}
+.copy-field.multi .copy-value {
+  font-weight: 400;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.copy-hint {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.copy-hint.warn {
+  color: var(--warn);
+}
+.copy-field.copied {
+  border-color: var(--running);
+  background: var(--running-bg);
+}
+.copy-field.copied .copy-hint {
+  color: var(--running);
+}
+@media (hover: hover) {
+  button.copy-field .copy-hint {
+    visibility: hidden;
+  }
+  button.copy-field:hover .copy-hint,
+  button.copy-field:focus-visible .copy-hint,
+  button.copy-field.copied .copy-hint {
+    visibility: visible;
+  }
+}
+.entry-foot {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+.entered-label {
+  color: var(--running);
+  font-weight: 700;
+}
+
+/* ---- settings ---- */
+.settings-btn {
+  margin-left: auto;
+}
+@media (min-width: 900px) {
+  .settings-btn {
+    margin-left: 0;
+  }
+}
+.setting {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+  border-top: 1.5px solid var(--border);
+}
+.setting-label {
+  font-weight: 700;
+}
+.setting-select {
+  min-height: var(--tap);
+  width: fit-content;
+}
+.setting-help {
+  margin: 0;
 }

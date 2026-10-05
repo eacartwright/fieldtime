@@ -77,8 +77,8 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
         />
         <div className="row-actions">
           {running ? (
-            <button className="btn" onClick={() => a.stop(running.id)}>
-              <span className="live-dot" aria-hidden /> Stop
+            <button className="btn pause" onClick={() => a.pause(running.id)}>
+              ❚❚ Pause
             </button>
           ) : (
             <button
@@ -90,6 +90,11 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
               }}
             >
               ▶ {info.sessions.length ? "Continue" : "Start"}
+            </button>
+          )}
+          {(running || task.pausedAt) && (
+            <button className="btn subtle" onClick={() => a.stop({ sessionId: running?.id, taskId })} title="Stop and take it off the Now stack">
+              ■ Stop
             </button>
           )}
           <span className="spacer" />

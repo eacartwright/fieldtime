@@ -45,7 +45,8 @@ Rejected options:
 | Port | fieldtime **8080**, next app 8081, … (dev ports 5173/8787 stay separate) |
 | Address | `https://<app>.<yourdomain>` |
 | Auto-start | Task Scheduler task "<app>", at system startup, whether signed in or not |
-| Data | inside `C:\Apps\<app>\data`, backed up nightly |
+| Data | inside `C:\Apps\<app>\data`, backed up daily |
+| Settings | `C:\Apps\<app>\.env` (git-ignored), written by the install script |
 
 ## Setup, once
 
@@ -67,33 +68,42 @@ Buying the domain and creating accounts are yours to do. Claude can do the rest 
 
 ## Adding an app (fieldtime first)
 
-1. On the mini PC, clone to `C:\Apps\fieldtime`, then `npm install` and `npm run build`.
-2. Try it: `PORT=8080 npm start` → open `http://localhost:8080`.
-3. **Auto-start:** Task Scheduler → Create Task "fieldtime":
-   - Trigger: At startup. Run whether user is logged on or not.
-   - Action: `node` with arguments `--import tsx packages/server/src/index.ts`, start in
-     `C:\Apps\fieldtime`
-   - Environment: set `PORT=8080` with a small `start.cmd` wrapper
-   - Settings: restart on failure every 1 minute
+1. On the mini PC, install **Git** and **Node LTS** (no C++ build tools needed; the database
+   is Node's built-in SQLite), and sign in to OneDrive.
+2. Clone the repo to `C:\Apps\fieldtime`.
+3. Start → type *PowerShell* → right-click → **Run as administrator**, then:
+   ```
+   cd C:\Apps\fieldtime
+   powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
+   ```
+   That builds the app, writes `.env` (port 8080, daily backups to
+   `OneDrive\Backups\fieldtime`), registers the **fieldtime** scheduled task (at startup, as
+   SYSTEM, whether or not anyone is signed in), opens port 8080 on private networks, starts it
+   and checks `/api/health`. `scripts\run.cmd` restarts the server if it ever exits; its output
+   goes to `data\server.log`.
 4. **Tunnel hostname:** Zero Trust → Tunnels → your tunnel → Public hostnames → Add:
    `fieldtime.<yourdomain>` → `http://localhost:8080`.
 5. Open `https://fieldtime.<yourdomain>` from anywhere → email code → the app.
 6. iPhone: open that address in Safari, sign in once, then Share → Add to Home Screen.
 
-**Updating an app:** in `C:\Apps\<app>`, `git pull`, `npm install`, `npm run build`, then restart
-its scheduled task. Claude can do this when asked.
+**Updating fieldtime:** push to `main` from the dev PC, then on the mini PC run
+`.\scripts\update.ps1` from an admin PowerShell in `C:\Apps\fieldtime`. It pulls, installs,
+builds, restarts the task and checks health. The installed iPhone app picks up the new build
+on its next launch (index.html is served `no-cache`).
 
 ## Things to know
 
 - **Live sync through the tunnel:** Cloudflare drops connections that are idle for 100 s. The
   server's SSE ping every 25 s keeps them open.
-- **When the Access session expires** (monthly), the app's background calls fail until the page
-  is reloaded and you sign in again. The outbox holds any changes made meanwhile, so nothing is
-  lost. If the installed iPhone PWA handles the sign-in redirect badly, there are two fallbacks:
+- **When the Access session expires** (monthly), the app's calls get redirected to the login.
+  The app notices and the status badge turns into **Signed out · Sign in**; tapping it reloads
+  through the login. The outbox holds any changes made meanwhile, so nothing is lost. If the installed iPhone PWA handles the sign-in redirect badly, there are two fallbacks:
   point the phone at the Tailscale address instead, or add an in-app login to fieldtime and
   exempt its hostname from Access.
 - **On the home network the app is still open** at `http://<minipc>:8080` without a login.
   That's fine for a home LAN. The API token planned in DESIGN.md §9 closes it if that ever
   matters.
-- **Backups:** nightly `VACUUM INTO` copy of each app's DB to OneDrive (still to be built, see
-  CLAUDE.md, Status).
+- **Backups:** the server writes `fieldtime-YYYY-MM-DD.db` (a `VACUUM INTO` snapshot) at startup
+  and at the first hourly check of each new day, into `FIELDTIME_BACKUP_DIR`, keeping 30.
+  `/api/health` reports the latest. To restore: stop the task, copy a backup over
+  `data\fieldtime.db` (delete the `-wal`/`-shm` files next to it), start the task.

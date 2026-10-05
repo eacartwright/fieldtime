@@ -145,7 +145,10 @@ Derived: **duration** = end − start − deduct.
   unless it's the task's only session. Tapping the wrong task doesn't leave junk behind.
 - **Resume, don't fragment**: continuing a task within 10 minutes of its last session ending
   reopens that session instead of starting a new one, so bouncing between tasks doesn't produce a
-  pile of tiny entries. (Both thresholds are constants in `shared/src/reducer.ts`.)
+  pile of tiny entries. (Both thresholds are **Settings** (⚙ in the header), synced so every device
+  and the server apply the same rule: discard under Off/10/30/60/120 s, default 30 s; resume within
+  Off/2/5/10/15/30/60 min, default 10 min. Stored as `state.settings`, changed with the
+  `settings.update` op.)
 - **Merge**: in task details, tap one session and then another. Everything between them is
   selected. Merging keeps the earliest start and the latest end, and joins the notes (empty
   "continuation" notes are skipped). Merges are same-day only, since each CW entry is for one day.
@@ -174,8 +177,8 @@ SALES - Quoting · Travel - To Client · Travel - From Client · Training - Prov
 > **Each task has at most one open session.** Several tasks may be running at once.
 
 Starting a task comes in two modes:
-- **Switch** (default): close every other open session at time *t*, then start this one at the
-  same *t*.
+- **Switch** (default): close every other open session at time *t* (those tasks become
+  **paused**, see below), then start this one at the same *t*.
 - **Alongside**: start this one and leave the others running.
 
 The reducer enforces this on the server, inside a transaction, and it's covered by tests. v1
@@ -207,7 +210,8 @@ kept three copies of "what's running," and they drifted apart. Here there is onl
 | **▶ New** | Start a new task now, note field focused, stopping whatever's running. *The primary button everywhere.* |
 | **▶ Continue** | Start (or resume) a session on an existing task. The ▶ on a list row or in task details **adds it alongside** whatever is running (Shift+click switches instead). Picking a task in the switcher **switches** (Shift+Enter adds alongside). |
 | **Alongside** | "+ Also working on…" (phone), or Shift with ▶ New / the switcher (desktop). |
-| **Stop** | Per running card, per list row, or "Stop all". |
+| **❚❚ Pause** | The everyday way out of a task, so it's the prominent button on a running card (Alt+P pauses the top one, Alt+Shift+P pauses all). The clock stops, but the task **stays on the Now stack** as a compact paused card with ▶ Resume, which adds it back alongside whatever is running (Shift switches, pausing the others). Switching to another task pauses the old one the same way. Resuming within 10 min reopens the same session. |
+| **■ Stop** | Per card (quiet ■ button), task details, or "Stop all". Stops the clock **and takes the task off the Now stack**. Stop all also clears paused tasks. **❚❚ Pause all** (shown when 2+ are running) pauses everything running. |
 | **+ Inbox** | Add an unstarted task (title, optional client) without touching the clock. |
 
 *Back was tried and removed. The switcher's recent-first list plus running several tasks at once
@@ -231,7 +235,9 @@ pressing ▶ New.
 ### Surfaces
 
 1. **Now stack**: one card per running task (timer, title, client, work type, **note field**,
-   Stop), newest on top. On desktop this becomes a small always-on-top window. On the phone it's
+   Pause, Stop), newest on top, then one compact card per paused task (title, client, time
+   paused, today's total, ▶ Resume, ■ Stop). Paused state is synced (`task.pausedAt`), so
+   every device shows the same stack. On desktop this becomes a small always-on-top window. On the phone it's
    the top of the main screen.
 2. **Switcher** (above).
 3. **Inbox**: unstarted tasks, by client.
@@ -254,7 +260,15 @@ pressing ▶ New.
         2:00– 3:00   Onsite - Business Hours   "…"
    ```
    Gaps between sessions are shown.
-7. **Day calendar** (planned): the same day drawn like Google/Outlook calendar or CW Time
+7. **Time entries** (built, Alt+E / **Entries**): what to type into CW, one card per session
+   with the fields in CW's order: Ticket #, Company, Date, Start, End, Hours (decimal, after
+   deduct), Work Type, Notes. **Clicking a field copies it** ("Copied ✓"). Missing ticket /
+   client / work type are filled in right on the card. **To enter** lists every session not
+   yet marked entered, across days (running ones last, can't be marked); **By day** shows a
+   chosen day's sessions. **Mark entered** sets `session.enteredAt` (undoable). An entered
+   session is never reopened by resume-within-gap, and a merge only stays entered if every
+   part was. Times are plain `8:00 AM`, dates `MM/DD/YYYY`.
+8. **Day calendar** (planned): the same day drawn like Google/Outlook calendar or CW Time
    Sheets. See below.
 
 ### Day calendar (planned)
@@ -335,7 +349,8 @@ global hotkeys and a tray icon. A browser tab also works as a fallback.
 
 - **Server**: runs on the always-on mini PC (the N97 is far more than enough). It owns the data,
   enforces the invariant, and holds all external credentials.
-- **Database**: **SQLite**, one file. Nightly backup (`VACUUM INTO`) to OneDrive or similar.
+- **Database**: **SQLite**, one file. Daily backup (`VACUUM INTO`, 30 kept) to OneDrive, done by
+  the server itself.
 - **Reachability**: public at `https://fieldtime.<domain>` through a **Cloudflare Tunnel**, with
   **Cloudflare Access** as the login (only my email). There's no port forward, so it works from
   any network, including the work PC, with nothing installed there. Tailscale remains the private
@@ -356,7 +371,7 @@ global hotkeys and a tray icon. A browser tab also works as a fallback.
 | Scratchpad editor | Markdown-first editor (e.g. Milkdown or CodeMirror 6 live preview) | Rich editing with plain markdown stored. Picked when that milestone comes up. |
 | Desktop | Tauri | Always-on-top, global hotkeys, tray. Same UI code. |
 | Server | Node + Hono | Small, typed, easy to run as a Windows service. |
-| DB | SQLite via better-sqlite3, plain SQL | Four small tables don't need an ORM. Numbered migrations in `server/src/db.ts`. |
+| DB | SQLite via Node's built-in `node:sqlite`, plain SQL (no native build step) | Four small tables don't need an ORM. Numbered migrations in `server/src/db.ts`. |
 | Sync | Ops + shared reducer | Every change is an op. The client applies it instantly and queues it; the server applies the same op with the same code (`shared/src/reducer.ts`), persists it, and pushes the result to every device over SSE. |
 
 ## 10. Integrations
