@@ -29,6 +29,18 @@ export type Op =
   | { type: "task.create"; taskId: Id; title: string; groupId: Id | null }
   | { type: "task.update"; taskId: Id; patch: TaskPatch }
   | { type: "session.update"; sessionId: Id; patch: SessionPatch }
+  /** Add time after the fact (no timer was running). */
+  | {
+      type: "session.create";
+      sessionId: Id;
+      taskId: Id;
+      start: Ms;
+      end: Ms;
+      categoryId?: Id | null;
+      notes?: string;
+    }
+  /** Delete a session (a tombstone), or bring it back with `undo`. */
+  | { type: "session.delete"; sessionId: Id; undo?: boolean }
   /** Combine sessions of one task into the earliest of them. */
   | { type: "session.merge"; sessionIds: Id[] }
   | { type: "group.create"; groupId: Id; name: string }
@@ -45,6 +57,8 @@ export const OP_TYPES: ReadonlySet<Op["type"]> = new Set([
   "task.create",
   "task.update",
   "session.update",
+  "session.create",
+  "session.delete",
   "session.merge",
   "group.create",
   "group.update",

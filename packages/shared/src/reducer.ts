@@ -236,12 +236,50 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       const s = state.sessions[op.sessionId];
       if (!s || s.deleted) break;
       const patch = { ...op.patch };
+      // Editing what was already entered elsewhere puts it back on the to-enter list, flagged.
+      const content = ["start", "end", "notes", "categoryId", "deductMin"] as const;
+      const changed = content.some((k) => k in patch && patch[k] !== s[k]);
+      if (patch.enteredAt) s.changedSinceEntered = false;
+      else if (s.enteredAt && changed && !("enteredAt" in patch)) {
+        patch.enteredAt = null;
+        s.changedSinceEntered = true;
+      }
       // Never give a task two open sessions.
       if (patch.end === null && s.end !== null && openSessions(state).some((o) => o.taskId === s.taskId)) {
         delete patch.end;
       }
       Object.assign(s, patch, { updatedAt: at });
       if (s.end !== null && s.end < s.start) s.end = s.start;
+      t.sessions.add(s.id);
+      break;
+    }
+
+    case "session.create": {
+      if (state.sessions[op.sessionId] || !state.tasks[op.taskId]) break;
+      if (!(op.end > op.start)) break;
+      state.sessions[op.sessionId] = {
+        id: op.sessionId,
+        taskId: op.taskId,
+        start: op.start,
+        end: op.end,
+        deductMin: 0,
+        notes: op.notes ?? "",
+        categoryId: op.categoryId !== undefined ? op.categoryId : inheritedCategory(state, op.taskId, op.start),
+        deleted: false,
+        updatedAt: at,
+        rev: 0,
+      };
+      t.sessions.add(op.sessionId);
+      break;
+    }
+
+    case "session.delete": {
+      const s = state.sessions[op.sessionId];
+      if (!s || !!s.deleted === !op.undo) break;
+      // Bringing back a running session while the task has started another: close it now.
+      if (op.undo && s.end === null && openSessions(state).some((o) => o.taskId === s.taskId)) s.end = Math.max(at, s.start);
+      s.deleted = !op.undo;
+      s.updatedAt = at;
       t.sessions.add(s.id);
       break;
     }
@@ -262,7 +300,9 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       target.deductMin = list.reduce((sum, s) => sum + s.deductMin, 0);
       target.categoryId = list.find((s) => s.categoryId)?.categoryId ?? null;
       // The merged session is a different entry; it only counts as entered if every part was.
-      target.enteredAt = list.every((s) => s.enteredAt) ? Math.max(...list.map((s) => s.enteredAt!)) : null;
+      const allEntered = list.every((s) => s.enteredAt);
+      target.enteredAt = allEntered ? Math.max(...list.map((s) => s.enteredAt!)) : null;
+      target.changedSinceEntered = !allEntered && list.some((s) => s.enteredAt || s.changedSinceEntered);
       target.updatedAt = at;
       t.sessions.add(target.id);
       for (const s of rest) {

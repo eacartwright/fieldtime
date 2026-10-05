@@ -20,6 +20,7 @@ import {
 } from "@fieldtime/shared";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { sync, type Snapshot } from "./sync";
+import { showToast } from "./toast";
 
 // Everything the UI reads (derived from the synced state) and every action it can take.
 
@@ -148,6 +149,10 @@ export interface Actions {
   updateTask(taskId: Id, patch: TaskPatch): void;
   updateSession(sessionId: Id, patch: SessionPatch): void;
   mergeSessions(sessionIds: Id[]): void;
+  /** Add time after the fact. Returns the new session id. */
+  createSession(taskId: Id, start: number, end: number): Id;
+  /** Delete a session, with an Undo toast. */
+  deleteSession(sessionId: Id): void;
   createGroup(name: string): Id;
   updateSettings(patch: { blipSec?: number; resumeGapMin?: number }): void;
   /** The top running card's notes field. */
@@ -206,6 +211,18 @@ export function useActionsFactory(): Actions {
       },
       mergeSessions(sessionIds) {
         sync.dispatch({ type: "session.merge", sessionIds });
+      },
+      createSession(taskId, start, end) {
+        const sessionId = newId();
+        sync.dispatch({ type: "session.create", sessionId, taskId, start, end });
+        return sessionId;
+      },
+      deleteSession(sessionId) {
+        sync.dispatch({ type: "session.delete", sessionId });
+        showToast("Session deleted", {
+          label: "Undo",
+          run: () => sync.dispatch({ type: "session.delete", sessionId, undo: true }),
+        });
       },
       createGroup(name) {
         const groupId = newId();

@@ -55,6 +55,8 @@ export interface Session {
   categoryId: Id | null;
   /** When it was marked as entered into the external system (e.g. a CW time entry). */
   enteredAt?: Ms | null;
+  /** Edited after it was marked entered, so the external entry needs fixing too. Cleared when re-marked. */
+  changedSinceEntered?: boolean;
   /** Merged into another session or discarded as a blip. Kept (not removed) so the change syncs. */
   deleted?: boolean;
   updatedAt: Ms;

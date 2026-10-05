@@ -47,6 +47,9 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 - Blips (< `settings.blipSec`, default 30 s; no notes; not the task's only session) are discarded
   when they end.
 - Continuing a task within `settings.resumeGapMin` (default 10) of its last session reopens it.
+- `session.create` (manual time, end > start), `session.delete` (tombstone; `undo` restores).
+  Editing start/end/notes/category/deduct of an entered session clears `enteredAt` and sets
+  `changedSinceEntered`; re-marking entered clears it.
 - Settings live in `state.settings` (read with `settingsOf()`; old cached states lack it), change
   via the `settings.update` op, persist as JSON in the server's `meta` table, sync like
   anything else. 0 turns a rule off.
@@ -75,6 +78,8 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   (Ctrl+K), inbox, task detail with merge, live sync, outbox.
 - Done: **Pause** (prominent; keeps tasks on the Now stack as paused cards) vs **Stop** (takes
   them off).
+- Done: **Editing** — one `SessionEditor` (date, start/end, deduct, work type, notes, snap 15,
+  delete+undo) in Task details and Time entries; + Add time; Merge… mode in both.
 - Done: **Time entries** sheet (Alt+E): per-session CW fields, click-to-copy, To enter / By day,
   Mark entered (`session.enteredAt`).
 - Deploy kit done and rehearsed on DEVvm: daily backups, `/api/health`, cache headers, PNG

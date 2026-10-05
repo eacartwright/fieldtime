@@ -260,10 +260,12 @@ pressing ▶ New.
         2:00– 3:00   Onsite - Business Hours   "…"
    ```
    Gaps between sessions are shown.
-7. **Time entries** (built, Alt+E / **Entries**): what to type into CW, one card per session
-   with the fields in CW's order: Ticket #, Company, Date, Start, End, Hours (decimal, after
-   deduct), Work Type, Notes. **Clicking a field copies it** ("Copied ✓"). Missing ticket /
-   client / work type are filled in right on the card. **To enter** lists every session not
+7. **Time entries** (built, Alt+E / **Entries**): what to type into CW, **grouped by task**,
+   because entries go in ticket by ticket, not chronologically. Each task is a collapsed row
+   (title, #ticket, client, entry count, total, ⚠ what's missing); tapping it shows Ticket # and
+   Company once, then one block per session (= one CW entry): Date, Start, End, Hours (decimal,
+   after deduct), Work Type, Notes. **Clicking a field copies it** ("Copied ✓"). Missing ticket /
+   client / work type are filled in right there. **Mark all N entered** per task. **To enter** lists every session not
    yet marked entered, across days (running ones last, can't be marked); **By day** shows a
    chosen day's sessions. **Mark entered** sets `session.enteredAt` (undoable). An entered
    session is never reopened by resume-within-gap, and a merge only stays entered if every
@@ -295,13 +297,21 @@ start/end, which the editing half of M1 adds anyway. The calendar is a natural h
 editing, so it may replace much of the form-based time picker. Implementation choice at build
 time: a custom timeline (full control, small) or FullCalendar's time-grid (MIT, has drag/resize).
 
-### Time entry
+### Time entry (editing sessions)
 
-- **Time field = dropdown + free text.** The dropdown offers quarter-hour slots near the current
-  value. Typing accepts loose input: `915`, `9:15`, `9.15a`, `1445`, `2:45p`.
-- **Snap setting** (off / 5 / 15 min) for edited times. Recorded timer times are stored exactly.
-- **"Snap this session"** is a single action that rounds a session's start/end to the nearest
-  quarter-hour.
+One **session editor**, used in both Task details (tap a session) and Time entries (✎ Edit on
+an entry): Date (moves the whole session), Start, End (native time inputs, so the iPhone shows
+its wheel; an end before the start means past midnight), Deduct (min), Work type, Notes,
+**Snap to 15 min** (rounds start/end to the nearest quarter hour), **Delete** (with an Undo
+toast). Changes save as you go. Recorded timer times are stored exactly until edited.
+
+- **+ Add time** (Task details, and per ticket in Time entries) adds a manual session (the half
+  hour before now, or midday on the day being viewed) and opens it in the editor.
+- **Merge…** is an explicit mode in both places (Task details: tap a range; Time entries: tick
+  entries). Same day only.
+- **Editing an entered session** (times, notes, work type, deduct) clears "entered" and flags it
+  *changed since entered*, so it comes back to To enter with a reminder to fix the CW entry.
+  Marking it entered again clears the flag.
 
 ### Look & feel (TBD, but these are the requirements)
 

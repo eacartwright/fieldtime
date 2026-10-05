@@ -331,6 +331,68 @@ describe("entered elsewhere", () => {
   });
 });
 
+describe("editing", () => {
+  const enter = (s: State, at: number, sessionId: string) =>
+    run(s, at, { type: "session.update", sessionId, patch: { enteredAt: at } });
+
+  it("editing an entered session puts it back to enter, flagged; re-marking clears the flag", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    stop(s, T0 + H);
+    enter(s, T0 + 2 * H, `A@${T0}`);
+    run(s, T0 + 3 * H, { type: "session.update", sessionId: `A@${T0}`, patch: { start: T0 - 15 * M } });
+    const a = s.sessions[`A@${T0}`]!;
+    expect([a.start, a.enteredAt, a.changedSinceEntered]).toEqual([T0 - 15 * M, null, true]);
+    enter(s, T0 + 4 * H, `A@${T0}`);
+    expect(s.sessions[`A@${T0}`]!.changedSinceEntered).toBe(false);
+  });
+
+  it("re-saving the same value doesn't count as a change", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    stop(s, T0 + H);
+    enter(s, T0 + 2 * H, `A@${T0}`);
+    run(s, T0 + 3 * H, { type: "session.update", sessionId: `A@${T0}`, patch: { start: T0 } });
+    expect(s.sessions[`A@${T0}`]!.enteredAt).toBe(T0 + 2 * H);
+  });
+
+  it("adds a manual session with the task's work type", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    run(s, T0 + M, { type: "session.update", sessionId: `A@${T0}`, patch: { categoryId: "remote" } });
+    stop(s, T0 + H);
+    run(s, T0 + 5 * H, { type: "session.create", sessionId: "m1", taskId: "A", start: T0 + 2 * H, end: T0 + 3 * H });
+    expect(live(s, "A")).toHaveLength(2);
+    expect(s.sessions.m1!.categoryId).toBe("remote");
+  });
+
+  it("refuses a manual session that ends before it starts", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    run(s, T0 + H, { type: "session.create", sessionId: "m1", taskId: "A", start: T0 + H, end: T0 });
+    expect(s.sessions.m1).toBeUndefined();
+  });
+
+  it("deletes and undeletes a session", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    stop(s, T0 + H);
+    run(s, T0 + 2 * H, { type: "session.delete", sessionId: `A@${T0}` });
+    expect(live(s, "A")).toHaveLength(0);
+    run(s, T0 + 2 * H, { type: "session.delete", sessionId: `A@${T0}`, undo: true });
+    expect(live(s, "A")).toHaveLength(1);
+  });
+
+  it("undoing the delete of a running session can't give a task two open sessions", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    run(s, T0 + H, { type: "session.delete", sessionId: `A@${T0}` });
+    cont(s, T0 + 2 * H, "A");
+    run(s, T0 + 3 * H, { type: "session.delete", sessionId: `A@${T0}`, undo: true });
+    expect(openSessions(s).filter((x) => x.taskId === "A")).toHaveLength(1);
+  });
+});
+
 describe("late ops (phone was offline)", () => {
   it("a late switch lands between the sessions around it", () => {
     const s = emptyState();

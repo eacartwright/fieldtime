@@ -62,6 +62,8 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE sessions ADD COLUMN entered_at INTEGER;`,
   // Paused tasks stay on the Now stack until stopped.
   `ALTER TABLE tasks ADD COLUMN paused_at INTEGER;`,
+  // Edited after being marked entered: the external entry needs fixing too.
+  `ALTER TABLE sessions ADD COLUMN changed_since_entered INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export type DB = DatabaseSync;
@@ -145,6 +147,7 @@ export function loadState(db: DB): State {
       notes: r.notes,
       categoryId: r.category_id,
       enteredAt: r.entered_at,
+      changedSinceEntered: !!r.changed_since_entered,
       deleted: !!r.deleted,
       updatedAt: r.updated_at,
       rev: r.rev,
@@ -160,8 +163,8 @@ export function saveChanges(db: DB, c: Changes) {
     VALUES (@id, @name, @position, @archived, @rev)`);
   const t = db.prepare(`INSERT OR REPLACE INTO tasks (id, title, group_id, ref, description, status, paused_at, created_at, updated_at, rev)
     VALUES (@id, @title, @groupId, @ref, @description, @status, @pausedAt, @createdAt, @updatedAt, @rev)`);
-  const s = db.prepare(`INSERT OR REPLACE INTO sessions (id, task_id, start, "end", deduct_min, notes, category_id, entered_at, deleted, updated_at, rev)
-    VALUES (@id, @taskId, @start, @end, @deductMin, @notes, @categoryId, @enteredAt, @deleted, @updatedAt, @rev)`);
+  const s = db.prepare(`INSERT OR REPLACE INTO sessions (id, task_id, start, "end", deduct_min, notes, category_id, entered_at, changed_since_entered, deleted, updated_at, rev)
+    VALUES (@id, @taskId, @start, @end, @deductMin, @notes, @categoryId, @enteredAt, @changedSinceEntered, @deleted, @updatedAt, @rev)`);
   for (const x of c.groups) g.run({ ...x, archived: x.archived ? 1 : 0 } satisfies Record<keyof Group, unknown>);
   for (const x of c.categories) cat.run({ ...x, archived: x.archived ? 1 : 0 } satisfies Record<keyof Category, unknown>);
   for (const x of c.tasks) t.run({ ...x, pausedAt: x.pausedAt ?? null } satisfies Task);
@@ -170,5 +173,12 @@ export function saveChanges(db: DB, c: Changes) {
       "INSERT INTO meta (key, value) VALUES ('settings', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     ).run(JSON.stringify(c.settings));
   }
-  for (const x of c.sessions) s.run({ ...x, enteredAt: x.enteredAt ?? null, deleted: x.deleted ? 1 : 0 } satisfies Record<keyof Session, unknown>);
+  for (const x of c.sessions) {
+    s.run({
+      ...x,
+      enteredAt: x.enteredAt ?? null,
+      changedSinceEntered: x.changedSinceEntered ? 1 : 0,
+      deleted: x.deleted ? 1 : 0,
+    } satisfies Record<keyof Session, unknown>);
+  }
 }

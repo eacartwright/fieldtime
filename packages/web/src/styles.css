@@ -885,22 +885,80 @@ select:focus {
   border: 1.5px solid var(--border-strong);
   background: var(--surface);
 }
-.entry-day {
-  display: grid;
-  gap: 10px;
+.entry-task {
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
-.entry-day h3 {
-  font-size: 0.95rem;
+.entry-task.open {
+  border-color: var(--border-strong);
+}
+.entry-task.entered .entry-task-text {
+  opacity: 0.6;
+}
+.entry-task-head {
+  width: 100%;
+  min-height: 56px;
   display: flex;
-  justify-content: space-between;
-  border-bottom: 1.5px solid var(--border);
-  padding-bottom: 4px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.entry-task-head:hover {
+  background: var(--surface-2);
+}
+.entry-task-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chevron {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.entry-task.open .chevron {
+  transform: rotate(90deg);
+}
+.entry-task-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  padding: 0 10px 10px;
+}
+.entry-times {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+@media (max-width: 599px) {
+  .entry-times {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* Label over value; the Copy hint floats in the corner so the value gets the full width. */
+.copy-field.stacked {
+  position: relative;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 0;
+}
+.copy-field.stacked .copy-hint {
+  position: absolute;
+  top: 6px;
+  right: 8px;
 }
 .entry {
   border: 1.5px solid var(--border);
   border-radius: var(--radius);
   padding: 10px;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 .entry.entered {
@@ -909,15 +967,9 @@ select:focus {
 .entry.entered .entry-fields {
   opacity: 0.6;
 }
-.entry-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-}
 .entry-fields {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
 }
 .copy-field {
@@ -996,12 +1048,12 @@ button.copy-field:hover {
   font-weight: 700;
 }
 
-/* ---- settings ---- */
-.settings-btn {
+/* ---- refresh / settings: top right on the phone, after the action bar on desktop ---- */
+.refresh-btn {
   margin-left: auto;
 }
 @media (min-width: 900px) {
-  .settings-btn {
+  .refresh-btn {
     margin-left: 0;
   }
 }
@@ -1020,4 +1072,112 @@ button.copy-field:hover {
 }
 .setting-help {
   margin: 0;
+}
+
+/* ---- session editor ---- */
+.session-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+.entry.editing {
+  border-color: var(--primary);
+}
+.editor-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+@media (max-width: 599px) {
+  .editor-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.editor-field {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.editor-input {
+  width: 100%;
+  min-width: 0; /* date/time inputs otherwise refuse to shrink below their intrinsic width */
+  min-height: var(--tap);
+  padding: 0 8px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface);
+  font-size: 16px;
+}
+.editor-static {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+}
+.btn.danger {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+/* ---- merge picker (time entries) ---- */
+.merge-pick {
+  display: grid;
+  gap: 6px;
+}
+.merge-pick p {
+  margin: 0;
+}
+.merge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--tap);
+  padding: 6px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.merge-row.on {
+  border-color: var(--primary);
+  background: var(--surface-2);
+}
+.merge-row input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  accent-color: var(--primary);
+}
+.merge-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ---- toast ---- */
+.toast {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.25);
+}
+.toast .btn {
+  min-height: 36px;
+  background: var(--bg);
+  color: var(--text);
+  border-color: var(--bg);
+}
+@media (min-width: 900px) {
+  .toast {
+    bottom: 24px;
+  }
 }

@@ -4,10 +4,11 @@ import { dayLabel, hm, timeOfDay } from "../format";
 import { useA, useM, useNow } from "../model";
 import { Dialog } from "./Dialog";
 import { DraftInput, DraftTextarea, GroupPicker } from "./fields";
+import { defaultManualSpan, SessionEditor } from "./SessionEditor";
 
 // Everything about one task: its fields, and its sessions grouped by day.
-// Tap a session, then another: everything between is selected and can be merged.
-// (Editing session times comes in the editing milestone.)
+// Tap a session to edit it. In Merge mode, tap one and then another: everything
+// between is selected and can be merged.
 
 export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => void }) {
   const m = useM();
@@ -15,6 +16,8 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
   const now = useNow(1000);
   const [anchor, setAnchor] = useState<number | null>(null);
   const [edge, setEdge] = useState<number | null>(null);
+  const [merging, setMerging] = useState(false);
+  const [editingId, setEditingId] = useState<Id | null>(null);
   const info = m.tasks.get(taskId);
   if (!info) return null;
   const { task } = info;
@@ -121,10 +124,41 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
         </div>
       </div>
 
-      {chrono.length > 1 && (
+      <div className="row-actions">
+        <button
+          className="btn subtle"
+          onClick={() => {
+            const { start, end } = defaultManualSpan(null);
+            setMerging(false);
+            clear();
+            setEditingId(a.createSession(taskId, start, end));
+          }}
+        >
+          + Add time
+        </button>
+        {chrono.length > 1 && !merging && (
+          <button
+            className="btn subtle"
+            onClick={() => {
+              setEditingId(null);
+              setMerging(true);
+            }}
+          >
+            Merge…
+          </button>
+        )}
+      </div>
+
+      {merging && (
         <div className={`merge-bar ${selected.length ? "on" : ""}`} role="status">
           {selected.length === 0 ? (
-            <span className="muted small">Tap two sessions to select them and everything between, then merge.</span>
+            <>
+              <span className="muted small">Tap two sessions to select them and everything between, then merge.</span>
+              <span className="spacer" />
+              <button className="btn" onClick={() => setMerging(false)}>
+                Cancel
+              </button>
+            </>
           ) : (
             <>
               <span>
@@ -133,8 +167,14 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
                 {!sameDay && <span className="warn"> · must be the same day</span>}
               </span>
               <span className="spacer" />
-              <button className="btn" onClick={clear}>
-                Clear
+              <button
+                className="btn"
+                onClick={() => {
+                  clear();
+                  setMerging(false);
+                }}
+              >
+                Cancel
               </button>
               <button
                 className="btn primary"
@@ -142,6 +182,7 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
                 onClick={() => {
                   a.mergeSessions(selected.map((s) => s.id));
                   clear();
+                  setMerging(false);
                 }}
               >
                 Merge
@@ -161,13 +202,14 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
             </h3>
             <ul>
               {rows.map(({ s, i }) => {
-                const on = i >= lo && i <= hi;
+                const on = merging && i >= lo && i <= hi;
+                const editing = !merging && editingId === s.id;
                 return (
                   <li key={s.id}>
                     <button
-                      className={`session ${on ? "selected" : ""}`}
-                      aria-pressed={on}
-                      onClick={() => tap(i)}
+                      className={`session ${on || editing ? "selected" : ""}`}
+                      aria-pressed={merging ? on : editing}
+                      onClick={() => (merging ? tap(i) : setEditingId(editing ? null : s.id))}
                     >
                       <span className="muted small">
                         {timeOfDay(s.start)}–{s.end ? timeOfDay(s.end) : "now"} · {hm(durationMs(s, now))}
@@ -176,7 +218,13 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
                       <span className={`pre ${s.notes ? "" : "muted"}`}>
                         {s.notes || "Continuation of previous work"}
                       </span>
+                      {s.enteredAt ? (
+                        <span className="entered-label small">✓ Entered</span>
+                      ) : (
+                        s.changedSinceEntered && <span className="warn small">⚠ Changed since entered</span>
+                      )}
                     </button>
+                    {editing && <SessionEditor session={s} onDone={() => setEditingId(null)} />}
                   </li>
                 );
               })}

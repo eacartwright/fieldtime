@@ -8,6 +8,7 @@ import { Switcher } from "./components/Switcher";
 import { TaskDetail } from "./components/TaskDetail";
 import { TaskList } from "./components/TaskList";
 import { ActionsContext, ModelContext, useActionsFactory, useModel, type Model } from "./model";
+import { dismissToast, useToast } from "./toast";
 
 type Overlay =
   | { kind: "switcher"; alongside?: boolean }
@@ -93,6 +94,10 @@ export function App() {
               Entries
             </button>
           </nav>
+          {/* The installed iPhone app has no browser reload; unsent changes are already in the outbox. */}
+          <button className="btn icon refresh-btn" onClick={() => location.reload()} title="Refresh" aria-label="Refresh">
+            <RefreshIcon />
+          </button>
           <button className="btn icon settings-btn" onClick={() => setOverlay({ kind: "settings" })} title="Settings" aria-label="Settings">
             <GearIcon />
           </button>
@@ -110,9 +115,31 @@ export function App() {
         {overlay?.kind === "inbox" && <InboxAdd onClose={close} />}
         {overlay?.kind === "entries" && <Entries onClose={close} />}
         {overlay?.kind === "settings" && <SettingsDialog onClose={close} />}
+        <ToastBar />
         {overlay?.kind === "detail" && <TaskDetail taskId={overlay.taskId} onClose={close} />}
       </ActionsContext.Provider>
     </ModelContext.Provider>
+  );
+}
+
+function ToastBar() {
+  const toast = useToast();
+  if (!toast) return null;
+  return (
+    <div className="toast" role="status" key={toast.id}>
+      <span>{toast.text}</span>
+      {toast.action && (
+        <button
+          className="btn"
+          onClick={() => {
+            toast.action!.run();
+            dismissToast();
+          }}
+        >
+          {toast.action.label}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -135,6 +162,15 @@ function SyncBadge({ model }: { model: Model }) {
     <span className={`sync sync-${tone}`} role="status">
       <span className="sync-dot" aria-hidden /> {text}
     </span>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
   );
 }
 
