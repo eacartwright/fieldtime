@@ -12,6 +12,7 @@ npm install
 npm run dev        # server :8787 + web :5173 (proxies /api); phone uses the LAN "Network" URL
 npm test           # vitest: reducer rules in packages/shared
 npm run typecheck  # tsc (TypeScript 7) over all three packages
+npm run cw -- companies   # ConnectWise dev CLI (companies [--all] | diag | dupes | tickets <text> | note <id>)
 ```
 
 Data is `data/fieldtime.db` (SQLite, git-ignored, **per machine**). To test without touching the
@@ -25,6 +26,10 @@ Browser checks: `playwright-core` with `channel: "msedge"` (Edge is installed; n
 - `packages/shared` — types, ops, **the reducer**, derived views. Used by both server and client.
 - `packages/server` — Node + Hono + `node:sqlite` (built in; needs Node ≥ 22.13). Applies op batches idempotently (op ids
   recorded in `ops` table), persists touched entities, bumps a global `rev`, pushes changes over SSE.
+- `packages/server/src/integrations/connectwise` — CW REST client (`client.ts`, fetch + Basic auth)
+  and a dev CLI (`cli.ts`). Credentials are `CW_*` in the git-ignored root `.env` (see `.env.example`).
+  Writes go to the **live** CW instance: `note` asks before posting, and notes default to Internal
+  with `processNotifications: false`. Page with `orderBy=id asc` (name ordering repeats records).
 - `packages/web` — React + Vite. `sync.ts`: view = server state + pending ops replayed through the
   same reducer; pending ops persist in localStorage before sending (the outbox).
 
@@ -84,6 +89,8 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   Mark entered (`session.enteredAt`).
 - Deploy kit done and rehearsed on DEVvm: daily backups, `/api/health`, cache headers, PNG
   icons, "Signed out" detection, `scripts/install.ps1` / `update.ps1` / `run.cmd`.
+- Started M5 groundwork: CW client + dev CLI (ported from the Python `psainteract` prototype, whose
+  company/ticket reads worked against the live instance). Ticket notes not yet tried on a test ticket.
 - Next: deploy on the mini PC at **https://fieldtime.evans.tools** by following
   [docs/deploy-evans-tools.md](docs/deploy-evans-tools.md) (a Claude session on the mini PC
   runs it with Evan). Then **M1.5 Day calendar**

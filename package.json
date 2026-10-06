@@ -10,7 +10,8 @@
     "build": "npm run build -w @fieldtime/web",
     "start": "npm run start -w @fieldtime/server",
     "test": "vitest run",
-    "typecheck": "tsc -p packages/shared && tsc -p packages/server && tsc -p packages/web"
+    "typecheck": "tsc -p packages/shared && tsc -p packages/server && tsc -p packages/web",
+    "cw": "node --env-file-if-exists=.env --import tsx packages/server/src/integrations/connectwise/cli.ts"
   },
   "devDependencies": {
     "concurrently": "^10.0.5",

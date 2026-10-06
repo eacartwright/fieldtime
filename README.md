@@ -62,6 +62,7 @@ The always-on copy runs on a home mini PC behind Cloudflare Tunnel + Access; see
 packages/
   shared/   data model, ops, the reducer that enforces "one thing running", derived views (+ tests)
   server/   Node + Hono + SQLite: applies ops, persists, pushes live updates (SSE)
+            integrations/connectwise: CW API client + `npm run cw` dev CLI (creds in .env)
   web/      React + Vite UI, local copy + outbox so nothing waits on the network
 scripts/    install.ps1 / update.ps1 / run.cmd for the always-on server
 docs/       hosting and machine setup
