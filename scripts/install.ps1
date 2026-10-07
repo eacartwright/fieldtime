@@ -20,12 +20,17 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
-$envLines = @("PORT=$Port")
+# Only PORT and FIELDTIME_BACKUP_DIR are ours; keep every other line (e.g. CW_* credentials).
+$envLines = @()
+if (Test-Path "$root\.env") {
+  $envLines = @(Get-Content "$root\.env" | Where-Object { $_ -notmatch "^(PORT|FIELDTIME_BACKUP_DIR)=" })
+}
+$envLines += "PORT=$Port"
 if ($BackupDir) { $envLines += "FIELDTIME_BACKUP_DIR=$BackupDir" }
 # No byte-order mark: Node would read it as part of the first key.
 [IO.File]::WriteAllLines("$root\.env", $envLines, (New-Object Text.UTF8Encoding $false))
 Write-Host "== .env" -ForegroundColor Cyan
-$envLines | ForEach-Object { Write-Host "   $_" }
+$envLines | Where-Object { $_ -match "^(PORT|FIELDTIME_BACKUP_DIR)=" } | ForEach-Object { Write-Host "   $_" }
 
 Write-Host "== scheduled task 'fieldtime'" -ForegroundColor Cyan
 $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$root\scripts\run.cmd`"" -WorkingDirectory $root

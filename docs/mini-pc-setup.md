@@ -1,9 +1,9 @@
 # Mini PC as the dev machine
 
 > **Superseded (2026-10-04):** development moved to **DEVvm**, a Windows 11 VM in VMware
-> Workstation on the desktop, at `C:\Dev\fieldtime`. The mini PC only *hosts* the real app
-> ([home-hosting.md](home-hosting.md)). The remote-access notes below still apply if you reach
-> the VM from other devices.
+> Workstation on the desktop, and on 2026-10-06 to the desktop itself (NOSTROMO), at
+> `C:\Dev\fieldtime`. The mini PC only *hosts* the real app ([home-hosting.md](home-hosting.md)).
+> The remote-access notes below still apply if you reach the dev machine from other devices.
 
 The mini PC (Intel N97, Windows 11, always on) is the **one place fieldtime is developed**. Code,
 dev servers, the scratch DB and every Claude Code conversation live there. The laptop, desktop and

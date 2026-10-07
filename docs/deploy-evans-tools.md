@@ -14,7 +14,7 @@ session **on the mini PC** can follow it top to bottom with Evan.
 
 State as of 2026-10-04: `evans.tools` is on Cloudflare DNS (nameservers `mitch`/`tina`) and serves a
 public landing page. No subdomains, no tunnel, no Access app yet. The mini PC is a fresh machine.
-Development happens on DEVvm; its data does **not** move here, so the real log starts empty.
+Development happens on the desktop (NOSTROMO); its data does **not** move here, so the real log starts empty.
 
 Legend: **[Evan]** = needs Evan (dashboard, admin prompt, or a decision). Everything else Claude
 does and checks.
@@ -96,7 +96,7 @@ subdomain `fieldtime`, domain `evans.tools`, service type **HTTP**, URL `localho
 
 ## 6. Afterwards
 
-- **Updates:** after pushing to `main` from DEVvm, on the mini PC in an admin PowerShell:
+- **Updates:** after pushing to `main` from the desktop, on the mini PC in an admin PowerShell:
   `cd C:\Apps\fieldtime; .\scripts\update.ps1` (pull, install, build, restart, health check).
 - **Reboot test** (once): restart the mini PC, don't sign in, and load the site from the phone.
 - **Restore a backup:** stop the task (`Stop-ScheduledTask fieldtime`), copy a backup over

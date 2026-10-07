@@ -76,6 +76,10 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 - `npm i -w <pkg> a b && npm i -D -w <pkg> c` has dropped the first install's entries from
   package.json. Install workspace deps one command at a time and check package.json after.
 - `crypto.randomUUID` needs a secure context; use `newId()` from shared (the phone hits http on the LAN).
+- `listen EACCES` on a free port = Windows NAT (Hyper-V/WSL) reserved it; ranges re-roll each boot
+  (`netsh interface ipv4 show excludedportrange protocol=tcp`). Fixed on the desktop by reserving
+  8787 (admin: `net stop winnat`, `netsh int ipv4 add excludedportrange protocol=tcp startport=8787
+  numberofports=1`, `net start winnat`). Don't just pick another 8xxx port; it can be grabbed too.
 
 ## Status
 
@@ -101,7 +105,8 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 - Commit and push only when asked.
 - Prefers the Claude desktop app / claude.ai over the terminal. Give GUI steps, not shell
   commands, where possible.
-- Develops on **DEVvm** (Win 11 VM in VMware Workstation). Claude has full control of it: install
-  tools, run servers, drive Edge. Git Bash doesn't see `node`; use PowerShell.
+- Develops on **NOSTROMO** (the desktop, `C:\Dev\fieldtime`) since 2026-10-06; DEVvm (a Win 11 VM)
+  before that. Tests and browser checks are headless (vitest; Playwright + Edge), so they never
+  take the screen. The VM is only worth it again for real-window work like M3 (Tauri).
 - Uses two Windows PCs and an iPhone 13; the mini PC (Intel N97, Win 11) hosts the real app at
   `C:\Apps\fieldtime`, port 8080.
