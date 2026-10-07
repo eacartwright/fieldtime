@@ -10,3 +10,6 @@ data/
 .DS_Store
 .vscode/*
 !.vscode/extensions.json
+
+# Windows shortcuts are per machine (e.g. the mini PC's "Update fieldtime" shortcut)
+*.lnk
