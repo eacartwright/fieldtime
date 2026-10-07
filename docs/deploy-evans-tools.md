@@ -123,8 +123,9 @@ Done 2026-10-06 unless marked.
   - **The first update after 2026-10-06** must be `git pull; .\scripts\update.ps1 -NoPull`: the
     copy of update.ps1 already on the machine ran `npm ci` with the server still up, which fails
     with `EPERM unlink …esbuild.exe`. Pulling first makes it run the fixed script.
-- **Reboot test** (once, not done yet): restart the mini PC, don't sign in, and load the site
-  from the phone.
+- **Reboot test:** passed 2026-10-06 (restart, then load the site from the phone). The mini PC
+  has **Autologon** on; the server (scheduled task, SYSTEM) and cloudflared (service) don't
+  need it. To test without it, hold Shift while Windows boots.
 - **Restore a backup:** stop the task (`Stop-ScheduledTask fieldtime`), copy a backup over
   `data\fieldtime.db`, delete `data\fieldtime.db-wal` and `-shm`, `Start-ScheduledTask fieldtime`.
 - **ConnectWise** (M5 onward): add the `CW_*` lines from the desktop's `.env` to

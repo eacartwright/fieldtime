@@ -102,8 +102,8 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 - Started M5 groundwork: CW client + dev CLI (ported from the Python `psainteract` prototype, whose
   company/ticket reads worked against the live instance). Ticket notes not yet tried on a test ticket.
 - Done 2026-10-06: live on the mini PC at **https://fieldtime.evans.tools** behind Cloudflare
-  Access ([docs/deploy-evans-tools.md](docs/deploy-evans-tools.md); iPhone home-screen app done; reboot
-  test still to do).
+  Access ([docs/deploy-evans-tools.md](docs/deploy-evans-tools.md); iPhone home-screen app and
+  reboot test done; CW lookup on).
 - Done (M5): **ticket lookup** — entering a ticket # (Task details, Time entries) fetches it from
   CW once the number settles; `TicketInfo` shows summary · company with ↻. The result is the
   `task.refInfo` op: ignored if the ref changed since, fills the title only if untitled and the
