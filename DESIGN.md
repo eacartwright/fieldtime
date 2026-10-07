@@ -415,7 +415,12 @@ Interface: each integration implements whichever parts make sense.
   myself; sometimes I deliberately drop it in the queue.
 - **Testing against the live instance**: test tickets go on **Veritaz IT Solutions** (CW company
   id `19300`, identifier `veritasitsolutions`), not on a client. Beware the lookalikes "Veritas IT
-  Solutions" (19593) and "Veritaz IT" (20018).
+  Solutions" (19593) and "Veritaz IT" (20018). The standing test ticket is **#106745**
+  ("fieldtime API test ticket (leave open)", Internal board, owner ecartwright = member 192).
+- **Duplicates, measured 2026-10-06**: 745 companies; 566 Active (326 type Customer, 203 Client,
+  28 Lead…). CW's company search shows ~385, a filter not yet identified. Suspicion: many
+  "Customer" records are leftovers (e.g. Veritas 19593 with identifier `0` beside the real Client
+  record), possibly from the Autotask migration. Client mapping has to cope with this.
 - **Later / maybe**: suggest likely existing tickets for a client.
 
 ## 11. AI note cleanup

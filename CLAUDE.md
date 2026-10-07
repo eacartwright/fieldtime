@@ -33,7 +33,8 @@ installed in a scratch folder, headless. For CW, point the scratch server at a f
   and a dev CLI (`cli.ts`). Credentials are `CW_*` in the git-ignored root `.env` (see `.env.example`).
   Writes go to the **live** CW instance: `note` asks before posting, and notes default to Internal
   with `processNotifications: false`. Test tickets/notes only on company **19300 Veritaz IT
-  Solutions** (`veritasitsolutions`; DESIGN.md §10). Page with `orderBy=id asc` (name ordering repeats records).
+  Solutions** (`veritasitsolutions`; DESIGN.md §10); the standing test ticket is **#106745**.
+  Ids on this instance: boards Tier 1 = 1, Internal = 30; Evan = member 192 (`ecartwright`). Page with `orderBy=id asc` (name ordering repeats records).
   CW is optional: the server enables it only when `CW_SITE` is set (`config.cw` in `/api/state`;
   the UI hides CW features otherwise). `npm run dev` loads the root `.env`. Endpoint so far:
   `GET /api/cw/tickets/:id` → `{summary, company, closed}`.

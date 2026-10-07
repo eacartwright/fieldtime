@@ -38,7 +38,17 @@ export interface CwTicket {
   company?: CwRef;
   board?: CwRef;
   status?: CwRef;
+  owner?: CwRef;
   closedFlag?: boolean;
+}
+
+export interface CwMember {
+  id: number;
+  identifier: string;
+  firstName?: string;
+  lastName?: string;
+  primaryEmail?: string;
+  inactiveFlag?: boolean;
 }
 
 export interface CwTicketNote {
@@ -197,14 +207,49 @@ export class ConnectWiseClient {
     });
   }
 
-  /** board and status ids vary per instance; look them up first. */
-  createTicket(t: { summary: string; companyId: number; boardId: number; statusId?: number; initialDescription?: string }) {
+  /**
+   * board and status ids vary per instance; look them up first. ownerId is a member id; without
+   * it the ticket is unassigned and waits on its board. CW's automatic emails to the contact,
+   * CCs and resources stay off by default.
+   */
+  createTicket(t: {
+    summary: string;
+    companyId: number;
+    boardId: number;
+    statusId?: number;
+    ownerId?: number;
+    initialDescription?: string;
+    emails?: boolean;
+  }) {
+    const emails = t.emails ?? false;
     return this.post<CwTicket>("/service/tickets", {
       summary: t.summary,
       company: { id: t.companyId },
       board: { id: t.boardId },
       ...(t.statusId ? { status: { id: t.statusId } } : {}),
+      ...(t.ownerId ? { owner: { id: t.ownerId } } : {}),
       ...(t.initialDescription ? { initialDescription: t.initialDescription } : {}),
+      automaticEmailContactFlag: emails,
+      automaticEmailResourceFlag: emails,
+      automaticEmailCcFlag: emails,
     });
+  }
+
+  // ---- Lookups (ids vary per instance) ----
+
+  /** Active service boards. */
+  getBoards() {
+    return this.getAll<CwRef & { inactiveFlag?: boolean }>("/service/boards", "inactiveFlag=false");
+  }
+
+  getBoardStatuses(boardId: number) {
+    return this.getAll<CwRef & { defaultFlag?: boolean; closedStatus?: boolean; inactive?: boolean }>(
+      `/service/boards/${boardId}/statuses`,
+    );
+  }
+
+  /** e.g. `identifier="ecartwright"` or `firstName="Evan"`. */
+  findMembers(conditions: string) {
+    return this.get<CwMember[]>("/system/members", { conditions, pageSize: 25 });
   }
 }
