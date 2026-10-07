@@ -7,13 +7,15 @@
     - allows the port through Windows Firewall on private networks (LAN / Tailscale)
     - builds the app and starts it
   Run once from an admin PowerShell in the server's clone (C:\Apps\fieldtime):
-    .\scripts\install.ps1
-  Safe to run again to change settings.
+    .\scripts\install.ps1 [-Port 8081] [-BackupDir <folder>]
+  Safe to run again to change settings. A setting you leave out keeps its value from .env;
+  on a first install it defaults to port 8081 and backups in OneDrive (if signed in).
+  The mini PC uses: -Port 8081 -BackupDir \\evnas\Junk\Tech\DBBackups\fieldtime
 #>
 param(
-  [int]$Port = 8080,
-  # Daily database copies. OneDrive gets them off the machine.
-  [string]$BackupDir = $(if ($env:OneDrive) { Join-Path $env:OneDrive "Backups\fieldtime" } else { "" })
+  [int]$Port,
+  # Daily database copies; keep them off this machine (NAS, OneDrive). "" = data\backups.
+  [string]$BackupDir
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,8 +24,19 @@ Set-Location $root
 
 # Only PORT and FIELDTIME_BACKUP_DIR are ours; keep every other line (e.g. CW_* credentials).
 $envLines = @()
+$current = @{}
 if (Test-Path "$root\.env") {
-  $envLines = @(Get-Content "$root\.env" | Where-Object { $_ -notmatch "^(PORT|FIELDTIME_BACKUP_DIR)=" })
+  foreach ($line in Get-Content "$root\.env") {
+    if ($line -match "^(PORT|FIELDTIME_BACKUP_DIR)=(.*)$") { $current[$Matches[1]] = $Matches[2] }
+    else { $envLines += $line }
+  }
+}
+if (-not $PSBoundParameters.ContainsKey("Port")) {
+  $Port = if ($current.PORT) { [int]$current.PORT } else { 8081 }
+}
+if (-not $PSBoundParameters.ContainsKey("BackupDir")) {
+  $BackupDir = if ($current.ContainsKey("FIELDTIME_BACKUP_DIR")) { $current.FIELDTIME_BACKUP_DIR }
+    elseif ($env:OneDrive) { Join-Path $env:OneDrive "Backups\fieldtime" } else { "" }
 }
 $envLines += "PORT=$Port"
 if ($BackupDir) { $envLines += "FIELDTIME_BACKUP_DIR=$BackupDir" }

@@ -95,10 +95,11 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   icons, "Signed out" detection, `scripts/install.ps1` / `update.ps1` / `run.cmd`.
 - Started M5 groundwork: CW client + dev CLI (ported from the Python `psainteract` prototype, whose
   company/ticket reads worked against the live instance). Ticket notes not yet tried on a test ticket.
-- Next: deploy on the mini PC at **https://fieldtime.evans.tools** by following
-  [docs/deploy-evans-tools.md](docs/deploy-evans-tools.md) (a Claude session on the mini PC
-  runs it with Evan). Then **M1.5 Day calendar**
-  (drag/resize sessions, fill gaps), which should carry most of M1's remaining time editing.
+- Done 2026-10-06: live on the mini PC at **https://fieldtime.evans.tools** behind Cloudflare
+  Access ([docs/deploy-evans-tools.md](docs/deploy-evans-tools.md); iPhone install and reboot
+  test still to do).
+- Next: M5 ticket lookup by number, then **M1.5 Day calendar** (drag/resize sessions, fill
+  gaps), which should carry most of M1's remaining time editing.
 
 ## Working with Evan
 
@@ -109,4 +110,5 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   before that. Tests and browser checks are headless (vitest; Playwright + Edge), so they never
   take the screen. The VM is only worth it again for real-window work like M3 (Tauri).
 - Uses two Windows PCs and an iPhone 13; the mini PC (Intel N97, Win 11) hosts the real app at
-  `C:\Apps\fieldtime`, port 8080.
+  `C:\Apps\fieldtime`, port 8081 (8080 is Caddy's), backups to the NAS. See
+  [docs/deploy-evans-tools.md](docs/deploy-evans-tools.md).

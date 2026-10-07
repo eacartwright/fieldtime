@@ -12,23 +12,28 @@ const FILE = /^fieldtime-\d{4}-\d{2}-\d{2}\.db$/;
 const pad = (n: number) => n.toString().padStart(2, "0");
 const localDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+// The folder may be a network share (the mini PC backs up to the NAS), so a failure here is
+// logged and retried next hour; it must never stop the server or fail /api/health.
 export function startBackups(db: DB, dir: string) {
-  mkdirSync(dir, { recursive: true });
-  const list = () => readdirSync(dir).filter((f) => FILE.test(f)).sort();
+  let latest: string | null = null;
 
   const run = () => {
-    const file = join(dir, `fieldtime-${localDate(new Date())}.db`);
-    if (existsSync(file)) return;
     try {
-      db.exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
-      for (const old of list().slice(0, -KEEP)) rmSync(join(dir, old));
-      console.log(`backup: ${file}`);
+      mkdirSync(dir, { recursive: true });
+      const file = join(dir, `fieldtime-${localDate(new Date())}.db`);
+      if (!existsSync(file)) {
+        db.exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
+        console.log(`backup: ${file}`);
+      }
+      const files = readdirSync(dir).filter((f) => FILE.test(f)).sort();
+      for (const old of files.slice(0, -KEEP)) rmSync(join(dir, old));
+      latest = files.at(-1) ?? null;
     } catch (err) {
-      console.error("backup failed:", err);
+      console.error(`backup failed (${dir}):`, err);
     }
   };
 
   run();
   setInterval(run, 60 * 60_000).unref();
-  return { latest: () => list().at(-1) ?? null };
+  return { latest: () => latest };
 }

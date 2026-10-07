@@ -94,7 +94,7 @@ architecture section). Keep the two apart so a half-finished change can't break 
 | | Dev | Real app |
 |---|---|---|
 | Folder | `C:\Dev\fieldtime` | `C:\Apps\fieldtime` (a separate clone that only pulls `main`) |
-| Ports | 5173 web / 8787 API (`npm run dev`) | 8080, public via Cloudflare Tunnel ([home-hosting.md](home-hosting.md)) |
+| Ports | 5173 web / 8787 API (`npm run dev`) | 8081, public via Cloudflare Tunnel ([home-hosting.md](home-hosting.md)) |
 | DB | `data/fieldtime.db` in the dev folder, or a scratch `FIELDTIME_DB` | `C:\Apps\fieldtime\data\fieldtime.db` + nightly backup |
 
 Hosting the real app (tunnel, login, auto-start) is covered in [home-hosting.md](home-hosting.md).
