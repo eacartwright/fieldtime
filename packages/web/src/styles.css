@@ -840,6 +840,27 @@ select:focus {
   border: 1.5px solid var(--border-strong);
   background: var(--surface);
 }
+/* The CW ticket behind a task's ref (TicketInfo). */
+.ticket {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.ticket-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.ticket-summary {
+  overflow-wrap: anywhere;
+}
+.ticket-refresh {
+  flex: none;
+  min-width: var(--tap);
+  padding: 0 10px;
+}
 .description {
   width: 100%;
   min-height: 4rem;

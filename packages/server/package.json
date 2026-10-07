@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch --import tsx src/index.ts",
-    "start": "node --import tsx src/index.ts"
+    "dev": "node --watch --env-file-if-exists=../../.env --import tsx src/index.ts",
+    "start": "node --env-file-if-exists=../../.env --import tsx src/index.ts"
   },
   "dependencies": {
     "@fieldtime/shared": "*",

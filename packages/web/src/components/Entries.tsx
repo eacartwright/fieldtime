@@ -4,7 +4,7 @@ import { copyText } from "../clipboard";
 import { dayLabel, hm, whenLabel } from "../format";
 import { useA, useM, useNow, type TaskInfo } from "../model";
 import { Dialog } from "./Dialog";
-import { CategorySelect, GroupPicker } from "./fields";
+import { CategorySelect, GroupPicker, TicketInfo } from "./fields";
 import { defaultManualSpan, SessionEditor } from "./SessionEditor";
 
 // Time entries, ready to type into ConnectWise. Grouped by task (you enter them ticket by
@@ -199,6 +199,7 @@ function TaskGroup({
               </Missing>
             )}
           </div>
+          <TicketInfo task={info.task} />
 
           {merging ? (
             <div className="merge-pick">

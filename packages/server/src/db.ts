@@ -64,6 +64,8 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE tasks ADD COLUMN paused_at INTEGER;`,
   // Edited after being marked entered: the external entry needs fixing too.
   `ALTER TABLE sessions ADD COLUMN changed_since_entered INTEGER NOT NULL DEFAULT 0;`,
+  // What the task's ref points to (a CW ticket), as JSON: RefInfo.
+  `ALTER TABLE tasks ADD COLUMN ref_info TEXT;`,
 ];
 
 export type DB = DatabaseSync;
@@ -132,6 +134,7 @@ export function loadState(db: DB): State {
       description: r.description,
       status: r.status,
       pausedAt: r.paused_at,
+      refInfo: r.ref_info ? JSON.parse(r.ref_info) : null,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       rev: r.rev,
@@ -161,13 +164,15 @@ export function saveChanges(db: DB, c: Changes) {
     VALUES (@id, @name, @archived, @createdAt, @updatedAt, @rev)`);
   const cat = db.prepare(`INSERT OR REPLACE INTO categories (id, name, position, archived, rev)
     VALUES (@id, @name, @position, @archived, @rev)`);
-  const t = db.prepare(`INSERT OR REPLACE INTO tasks (id, title, group_id, ref, description, status, paused_at, created_at, updated_at, rev)
-    VALUES (@id, @title, @groupId, @ref, @description, @status, @pausedAt, @createdAt, @updatedAt, @rev)`);
+  const t = db.prepare(`INSERT OR REPLACE INTO tasks (id, title, group_id, ref, ref_info, description, status, paused_at, created_at, updated_at, rev)
+    VALUES (@id, @title, @groupId, @ref, @refInfo, @description, @status, @pausedAt, @createdAt, @updatedAt, @rev)`);
   const s = db.prepare(`INSERT OR REPLACE INTO sessions (id, task_id, start, "end", deduct_min, notes, category_id, entered_at, changed_since_entered, deleted, updated_at, rev)
     VALUES (@id, @taskId, @start, @end, @deductMin, @notes, @categoryId, @enteredAt, @changedSinceEntered, @deleted, @updatedAt, @rev)`);
   for (const x of c.groups) g.run({ ...x, archived: x.archived ? 1 : 0 } satisfies Record<keyof Group, unknown>);
   for (const x of c.categories) cat.run({ ...x, archived: x.archived ? 1 : 0 } satisfies Record<keyof Category, unknown>);
-  for (const x of c.tasks) t.run({ ...x, pausedAt: x.pausedAt ?? null } satisfies Task);
+  for (const x of c.tasks) {
+    t.run({ ...x, pausedAt: x.pausedAt ?? null, refInfo: x.refInfo ? JSON.stringify(x.refInfo) : null });
+  }
   if (c.settings) {
     db.prepare(
       "INSERT INTO meta (key, value) VALUES ('settings', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",

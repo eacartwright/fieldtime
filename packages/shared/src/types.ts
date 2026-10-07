@@ -32,6 +32,8 @@ export interface Task {
   groupId: Id | null;
   /** External reference, e.g. a ticket number. */
   ref: string;
+  /** What `ref` points to, looked up in the integration (CW ticket). Cleared when `ref` changes. */
+  refInfo?: RefInfo | null;
   description: string;
   status: TaskStatus;
   /**
@@ -42,6 +44,14 @@ export interface Task {
   createdAt: Ms;
   updatedAt: Ms;
   rev: number;
+}
+
+export interface RefInfo {
+  summary: string;
+  /** The external system's name for the client (CW company). */
+  company: string;
+  closed: boolean;
+  fetchedAt: Ms;
 }
 
 export interface Session {

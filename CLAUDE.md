@@ -17,9 +17,12 @@ npm run cw -- companies   # ConnectWise dev CLI (companies [--all] | diag | dupe
 
 Data is `data/fieldtime.db` (SQLite, git-ignored, **per machine**). To test without touching the
 user's real data, run on other ports against a scratch DB:
-`FIELDTIME_DB=<scratch>/t.db PORT=8797 node --import tsx packages/server/src/index.ts` and
-`FIELDTIME_API=http://localhost:8797 npx vite --port 5183` (from `packages/web`).
-Browser checks: `playwright-core` with `channel: "msedge"` (Edge is installed; no browser download).
+`FIELDTIME_DB=<scratch>/t.db PORT=7797 node --import tsx packages/server/src/index.ts` and
+`FIELDTIME_API=http://localhost:7797 npx vite --port 5183` (from `packages/web`), or `npm run build`
+and use the server alone. (On NOSTROMO 8577–8976 is reserved by Windows except 8787; see Gotchas.)
+Browser checks: `playwright-core` with `channel: "msedge"` (Edge is installed; no browser download),
+installed in a scratch folder, headless. For CW, point the scratch server at a fake CW with
+`CW_BASE_URL=http://127.0.0.1:<port>` plus dummy `CW_*` values; never the live instance.
 
 ## Architecture
 
@@ -30,6 +33,9 @@ Browser checks: `playwright-core` with `channel: "msedge"` (Edge is installed; n
   and a dev CLI (`cli.ts`). Credentials are `CW_*` in the git-ignored root `.env` (see `.env.example`).
   Writes go to the **live** CW instance: `note` asks before posting, and notes default to Internal
   with `processNotifications: false`. Page with `orderBy=id asc` (name ordering repeats records).
+  CW is optional: the server enables it only when `CW_SITE` is set (`config.cw` in `/api/state`;
+  the UI hides CW features otherwise). `npm run dev` loads the root `.env`. Endpoint so far:
+  `GET /api/cw/tickets/:id` → `{summary, company, closed}`.
 - `packages/web` — React + Vite. `sync.ts`: view = server state + pending ops replayed through the
   same reducer; pending ops persist in localStorage before sending (the outbox).
 
@@ -98,8 +104,12 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 - Done 2026-10-06: live on the mini PC at **https://fieldtime.evans.tools** behind Cloudflare
   Access ([docs/deploy-evans-tools.md](docs/deploy-evans-tools.md); iPhone install and reboot
   test still to do).
-- Next: M5 ticket lookup by number, then **M1.5 Day calendar** (drag/resize sessions, fill
-  gaps), which should carry most of M1's remaining time editing.
+- Done (M5): **ticket lookup** — entering a ticket # (Task details, Time entries) fetches it from
+  CW once the number settles; `TicketInfo` shows summary · company with ↻. The result is the
+  `task.refInfo` op: ignored if the ref changed since, fills the title only if untitled and the
+  client only if unset (matched by exact name). Changing the ref clears `refInfo`.
+- Next: M5 client mapping (local client → one CW company, handling CW duplicates) and work types,
+  then **M1.5 Day calendar** (drag/resize sessions, fill gaps).
 
 ## Working with Evan
 

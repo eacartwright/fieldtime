@@ -17,6 +17,8 @@ import {
 export interface Config {
   groupLabel: string;
   categoryLabel: string;
+  /** The server has ConnectWise set up (ticket lookup). Missing in configs cached before it existed. */
+  cw?: boolean;
 }
 
 /** "signedout": the login in front of the server (Cloudflare Access) has expired. */
@@ -34,10 +36,10 @@ const CACHE_KEY = "fieldtime:cache";
 const PENDING_KEY = "fieldtime:pending";
 const KINDS = ["groups", "categories", "tasks", "sessions"] as const;
 
-class SignedOut extends Error {}
+export class SignedOut extends Error {}
 
 /** fetch, but a redirect (to the Access login page) is reported as SignedOut instead of a CORS failure. */
-async function api(path: string, init?: RequestInit): Promise<Response> {
+export async function api(path: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(path, { ...init, redirect: "manual" });
   if (res.type === "opaqueredirect" || res.status === 401 || res.status === 403) throw new SignedOut();
   if (!res.ok) throw new Error(String(res.status));

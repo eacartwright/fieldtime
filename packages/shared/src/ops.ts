@@ -1,4 +1,4 @@
-import type { Id, Ms, Session, Settings, Task } from "./types";
+import type { Id, Ms, RefInfo, Session, Settings, Task } from "./types";
 
 // Every change to the data is an op. Clients apply ops locally right away and
 // queue them for the server, which applies the same ops with the same reducer.
@@ -28,6 +28,11 @@ export type Op =
   /** Create a task without starting it (Inbox). */
   | { type: "task.create"; taskId: Id; title: string; groupId: Id | null }
   | { type: "task.update"; taskId: Id; patch: TaskPatch }
+  /**
+   * The result of looking up the task's ref (a CW ticket). Ignored if the ref has changed since.
+   * Fills the title if the task is still untitled, and the group if it still has none.
+   */
+  | { type: "task.refInfo"; taskId: Id; ref: string; info: RefInfo; groupId?: Id | null }
   | { type: "session.update"; sessionId: Id; patch: SessionPatch }
   /** Add time after the fact (no timer was running). */
   | {
@@ -56,6 +61,7 @@ export const OP_TYPES: ReadonlySet<Op["type"]> = new Set([
   "timer.pause",
   "task.create",
   "task.update",
+  "task.refInfo",
   "session.update",
   "session.create",
   "session.delete",

@@ -1,3 +1,4 @@
+import { ticketNumber } from "./derive";
 import type { OpEnvelope } from "./ops";
 import { settingsOf, type Changes, type Id, type Ms, type Session, type State } from "./types";
 
@@ -222,6 +223,8 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
     case "task.update": {
       const task = state.tasks[op.taskId];
       if (!task) break;
+      // Ticket info describes the old ref, so it goes when the ref changes.
+      if (op.patch.ref !== undefined && ticketNumber(op.patch.ref) !== ticketNumber(task.ref)) task.refInfo = null;
       Object.assign(task, op.patch, { updatedAt: at });
       t.tasks.add(task.id);
       // Finishing or archiving a task stops its clock and takes it off the Now stack.
@@ -229,6 +232,19 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         setPaused(state, task.id, null, at, t);
         for (const s of openSessions(state)) if (s.taskId === task.id) endSession(state, s, at, t);
       }
+      break;
+    }
+
+    case "task.refInfo": {
+      const task = state.tasks[op.taskId];
+      // A lookup that finishes after the ref was changed (here or on another device) is stale.
+      if (!task || !ticketNumber(op.ref) || ticketNumber(task.ref) !== ticketNumber(op.ref)) break;
+      task.refInfo = op.info;
+      // Fill only what's still empty, so a title or client set meanwhile is never replaced.
+      if (!task.title.trim()) task.title = op.info.summary;
+      if (task.groupId === null && op.groupId && state.groups[op.groupId]) task.groupId = op.groupId;
+      task.updatedAt = at;
+      t.tasks.add(task.id);
       break;
     }
 

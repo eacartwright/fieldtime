@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { OP_TYPES, type OpEnvelope } from "@fieldtime/shared";
 import { startBackups } from "./backup";
 import { openDb } from "./db";
+import { ConnectWiseClient, CwError, configFromEnv } from "./integrations/connectwise/client";
 import { profile, seedCategories } from "./profile";
 import { Store } from "./store";
 
@@ -23,6 +24,17 @@ if (Object.keys(store.state.categories).length === 0) {
   store.seed({ groups: [], categories: seedCategories(), tasks: [], sessions: [] });
 }
 
+// ConnectWise is optional: without the CW_* settings in .env, ticket lookup is off.
+const cw = (() => {
+  if (!process.env.CW_SITE) return null;
+  try {
+    return new ConnectWiseClient(configFromEnv());
+  } catch (err) {
+    console.error(`ConnectWise is off: ${(err as Error).message}`);
+    return null;
+  }
+})();
+
 function isOpEnvelope(x: any): x is OpEnvelope {
   return (
     x && typeof x.id === "string" && typeof x.at === "number" && x.op && OP_TYPES.has(x.op.type)
@@ -37,9 +49,23 @@ app.get("/api/state", (c) =>
   c.json({
     rev: store.rev,
     state: store.state,
-    config: { groupLabel: profile.groupLabel, categoryLabel: profile.categoryLabel },
+    config: { groupLabel: profile.groupLabel, categoryLabel: profile.categoryLabel, cw: cw !== null },
   }),
 );
+
+app.get("/api/cw/tickets/:id", async (c) => {
+  if (!cw) return c.json({ error: "ConnectWise isn't set up on this server" }, 503);
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id) || id <= 0) return c.json({ error: "Not a ticket number" }, 400);
+  try {
+    const t = await cw.getTicket(id);
+    return c.json({ id: t.id, summary: t.summary, company: t.company?.name ?? "", closed: !!t.closedFlag });
+  } catch (err) {
+    if (err instanceof CwError && err.status === 404) return c.json({ error: `No ticket #${id}` }, 404);
+    console.error(err);
+    return c.json({ error: "ConnectWise lookup failed" }, 502);
+  }
+});
 
 app.post("/api/ops", async (c) => {
   const body = await c.req.json().catch(() => null);

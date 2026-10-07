@@ -11,6 +11,8 @@ export interface CwConfig {
   privateKey: string;
   clientId: string;
   apiVersion?: string;
+  /** Replaces https://{site}/v4_6_release/apis/3.0, e.g. to point tests at a fake CW. */
+  baseUrl?: string;
 }
 
 export interface CwRef {
@@ -74,6 +76,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv = process.env): CwConfig {
     publicKey: need("CW_PUBLIC_KEY"),
     privateKey: need("CW_PRIVATE_KEY"),
     clientId: need("CW_CLIENT_ID"),
+    baseUrl: env.CW_BASE_URL || undefined,
   };
 }
 
@@ -82,7 +85,7 @@ export class ConnectWiseClient {
   private readonly headers: Record<string, string>;
 
   constructor(config: CwConfig) {
-    this.baseUrl = `https://${config.site}/v4_6_release/apis/3.0`;
+    this.baseUrl = config.baseUrl ?? `https://${config.site}/v4_6_release/apis/3.0`;
     const auth = Buffer.from(
       `${config.companyId}+${config.publicKey}:${config.privateKey}`,
     ).toString("base64");

@@ -44,6 +44,12 @@ export function displayTitle(task: Task, sessions: Session[] = []): { text: stri
   return { text: `Untitled · ${hm}`, derived: true };
 }
 
+/** A ref as typed ("#12345 ", "12345") reduced to the ticket number; "" if it isn't one. */
+export function ticketNumber(ref: string): string {
+  const n = ref.trim().replace(/^#+/, "").trim();
+  return /^\d+$/.test(n) ? n : "";
+}
+
 /** Recency for sorting: the last time the task was started, or when it was created. */
 export function lastTouchedAt(task: Task, sessions: Session[] = []): Ms {
   const last = sessions[sessions.length - 1];

@@ -1,4 +1,4 @@
-import type { Id } from "@fieldtime/shared";
+import { ticketNumber, type Id, type Task } from "@fieldtime/shared";
 import { useEffect, useRef, useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { useA, useM } from "../model";
 
@@ -169,5 +169,58 @@ export function CategorySelect({ value, onChange }: { value: Id | null; onChange
         </option>
       ))}
     </select>
+  );
+}
+
+/**
+ * The CW ticket behind a task's ref: summary and company, looked up once the number has
+ * settled (and again with ↻). Shows nothing without a ticket number or without CW.
+ */
+export function TicketInfo({ task }: { task: Task }) {
+  const m = useM();
+  const a = useA();
+  const n = ticketNumber(task.ref);
+  const info = task.refInfo;
+  // The last lookup this field ran, so a number that wasn't found isn't retried on every render.
+  const [tried, setTried] = useState<{ n: string; busy: boolean; error: string | null } | null>(null);
+
+  const lookup = async () => {
+    setTried({ n, busy: true, error: null });
+    const error = await a.lookupTicket(task.id);
+    setTried({ n, busy: false, error });
+  };
+
+  useEffect(() => {
+    if (!m.config.cw || !n || info || tried?.n === n) return;
+    const id = setTimeout(() => void lookup(), 800);
+    return () => clearTimeout(id);
+  }, [m.config.cw, n, info, tried?.n]);
+
+  if (!m.config.cw || !n) return null;
+  const current = tried?.n === n ? tried : null;
+  if (current?.busy) return <p className="ticket muted small">Looking up #{n}…</p>;
+  if (current?.error) {
+    return (
+      <p className="ticket small">
+        <span className="warn">{current.error}</span>
+        <button className="btn subtle ticket-refresh" onClick={() => void lookup()}>
+          Retry
+        </button>
+      </p>
+    );
+  }
+  if (!info) return null;
+  return (
+    <p className="ticket small">
+      <span className="ticket-text">
+        <span className="ticket-summary">{info.summary}</span>
+        <span className="muted">
+          {[info.company, info.closed && "closed"].filter(Boolean).join(" · ")}
+        </span>
+      </span>
+      <button className="btn subtle ticket-refresh" onClick={() => void lookup()} title="Refresh from ConnectWise" aria-label="Refresh ticket from ConnectWise">
+        ↻
+      </button>
+    </p>
   );
 }

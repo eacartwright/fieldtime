@@ -441,3 +441,54 @@ describe("titles", () => {
     expect(firstLine("1. first")).toBe("first");
   });
 });
+
+describe("ticket lookup", () => {
+  const info = { summary: "Printer offline", company: "Acme", closed: false, fetchedAt: T0 };
+  const withTask = (title = "") => {
+    const s = emptyState();
+    run(s, T0, { type: "group.create", groupId: "acme", name: "Acme" });
+    run(s, T0, { type: "task.create", taskId: "A", title, groupId: null });
+    run(s, T0, { type: "task.update", taskId: "A", patch: { ref: "#123 " } });
+    return s;
+  };
+  const lookup = (s: State, ref: string, groupId: string | null = "acme") =>
+    run(s, T0 + M, { type: "task.refInfo", taskId: "A", ref, info, groupId });
+
+  it("fills an untitled task's title and client", () => {
+    const s = withTask();
+    lookup(s, "123");
+    expect(s.tasks.A).toMatchObject({ refInfo: info, title: "Printer offline", groupId: "acme" });
+  });
+
+  it("never replaces a title or client set meanwhile", () => {
+    const s = withTask("My title");
+    run(s, T0, { type: "group.create", groupId: "other", name: "Other" });
+    run(s, T0, { type: "task.update", taskId: "A", patch: { groupId: "other" } });
+    lookup(s, "123");
+    expect(s.tasks.A).toMatchObject({ refInfo: info, title: "My title", groupId: "other" });
+  });
+
+  it("ignores a lookup for a ref that has since changed", () => {
+    const s = withTask();
+    run(s, T0, { type: "task.update", taskId: "A", patch: { ref: "456" } });
+    lookup(s, "123");
+    expect(s.tasks.A!.refInfo ?? null).toBeNull();
+    expect(s.tasks.A!.title).toBe("");
+  });
+
+  it("clears the info when the ref changes, but not when only its formatting does", () => {
+    const s = withTask();
+    lookup(s, "123");
+    run(s, T0 + 2 * M, { type: "task.update", taskId: "A", patch: { ref: "123" } });
+    expect(s.tasks.A!.refInfo).toEqual(info);
+    run(s, T0 + 3 * M, { type: "task.update", taskId: "A", patch: { ref: "124" } });
+    expect(s.tasks.A!.refInfo).toBeNull();
+  });
+
+  it("is safe to apply twice and skips an unknown group", () => {
+    const s = withTask();
+    lookup(s, "123", "nope");
+    lookup(s, "123", "nope");
+    expect(s.tasks.A).toMatchObject({ title: "Printer offline", groupId: null, refInfo: info });
+  });
+});

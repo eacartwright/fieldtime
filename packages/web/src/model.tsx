@@ -9,6 +9,7 @@ import {
   sessionsByTask,
   settingsOf,
   startOfDay,
+  ticketNumber,
   type Group,
   type Id,
   type Session,
@@ -19,7 +20,7 @@ import {
   type TaskPatch,
 } from "@fieldtime/shared";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { sync, type Snapshot } from "./sync";
+import { api, SignedOut, sync, type Snapshot } from "./sync";
 import { showToast } from "./toast";
 
 // Everything the UI reads (derived from the synced state) and every action it can take.
@@ -147,6 +148,8 @@ export interface Actions {
   stop(target?: { sessionId?: Id; taskId?: Id }): void;
   addInbox(title: string, groupId: Id | null): void;
   updateTask(taskId: Id, patch: TaskPatch): void;
+  /** Fetch the CW ticket behind the task's ref and record it. Resolves to an error message, or null. */
+  lookupTicket(taskId: Id): Promise<string | null>;
   updateSession(sessionId: Id, patch: SessionPatch): void;
   mergeSessions(sessionIds: Id[]): void;
   /** Add time after the fact. Returns the new session id. */
@@ -205,6 +208,34 @@ export function useActionsFactory(): Actions {
       },
       updateTask(taskId, patch) {
         sync.dispatch({ type: "task.update", taskId, patch }, 600);
+      },
+      async lookupTicket(taskId) {
+        const task = sync.getSnapshot().view.tasks[taskId];
+        const n = task ? ticketNumber(task.ref) : "";
+        if (!n) return null;
+        try {
+          const res = await api(`/api/cw/tickets/${n}`);
+          const t = (await res.json()) as { summary: string; company: string; closed: boolean };
+          // The CW company becomes the client if a client of the same name exists.
+          const name = t.company.trim().toLowerCase();
+          const group = Object.values(sync.getSnapshot().view.groups).find(
+            (g) => !g.archived && g.name.trim().toLowerCase() === name,
+          );
+          sync.dispatch({
+            type: "task.refInfo",
+            taskId,
+            ref: n,
+            info: { summary: t.summary, company: t.company, closed: t.closed, fetchedAt: Date.now() },
+            groupId: group?.id ?? null,
+          });
+          return null;
+        } catch (err) {
+          if (err instanceof SignedOut) return "Signed out: reload to sign in";
+          const status = (err as Error).message;
+          if (status === "404") return `No ticket #${n}`;
+          if (status === "503") return "ConnectWise isn't set up on the server";
+          return "Couldn't look it up";
+        }
       },
       updateSession(sessionId, patch) {
         sync.dispatch({ type: "session.update", sessionId, patch }, 800);
