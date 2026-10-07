@@ -3,7 +3,7 @@
 A personal work log for an MSP tech: frictionless start/stop of tasks plus quick notes, on
 Windows desktops and an iPhone. **[DESIGN.md](DESIGN.md) is the spec**; read the relevant section
 before changing behavior, and update it when a decision changes. v1 (April 2026, React/Supabase)
-lives in `v1/` and on the `archive/v1` branch — reference only.
+was removed 2026-10-06; it's in git history as `v1/` up to commit `85996a4`.
 
 ## Run / test
 

@@ -3,7 +3,8 @@
 A personal work log: frictionless start/stop and note-taking for whatever you're working on,
 on desktop and phone. See [DESIGN.md](DESIGN.md) for the full design.
 
-The April 2026 React/Supabase version lives in [v1/](v1/) (and on the `archive/v1` branch).
+The April 2026 React/Supabase version was removed on 2026-10-06; it's in git history as `v1/` up to
+commit `85996a4` (e.g. `git show 85996a4:v1/src/App.jsx`).
 
 ## Run it
 
@@ -66,7 +67,6 @@ packages/
   web/      React + Vite UI, local copy + outbox so nothing waits on the network
 scripts/    install.ps1 / update.ps1 / run.cmd for the always-on server
 docs/       hosting and machine setup
-v1/         the original app, untouched
 ```
 
 ```sh
