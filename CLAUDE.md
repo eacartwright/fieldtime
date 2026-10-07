@@ -32,7 +32,8 @@ installed in a scratch folder, headless. For CW, point the scratch server at a f
 - `packages/server/src/integrations/connectwise` — CW REST client (`client.ts`, fetch + Basic auth)
   and a dev CLI (`cli.ts`). Credentials are `CW_*` in the git-ignored root `.env` (see `.env.example`).
   Writes go to the **live** CW instance: `note` asks before posting, and notes default to Internal
-  with `processNotifications: false`. Page with `orderBy=id asc` (name ordering repeats records).
+  with `processNotifications: false`. Test tickets/notes only on company **19300 Veritaz IT
+  Solutions** (`veritasitsolutions`; DESIGN.md §10). Page with `orderBy=id asc` (name ordering repeats records).
   CW is optional: the server enables it only when `CW_SITE` is set (`config.cw` in `/api/state`;
   the UI hides CW features otherwise). `npm run dev` loads the root `.env`. Endpoint so far:
   `GET /api/cw/tickets/:id` → `{summary, company, closed}`.

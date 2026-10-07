@@ -409,6 +409,13 @@ Interface: each integration implements whichever parts make sense.
 - **Ref workflow**: find the ticket in CW manually, paste its number into the task → fieldtime
   fetches the summary + company, and from then on **pushes each of that task's sessions as its
   own time entry on that ticket**.
+- **Creating a ticket from a task** (planned): the **Ticket Owner** defaults to me (probably; not
+  final), shown as a chip with an **×**. Removing it leaves the ticket unassigned so it lands on
+  the **Tier 1** service board, where the service coordinator assigns a tech. Often I'll want it
+  myself; sometimes I deliberately drop it in the queue.
+- **Testing against the live instance**: test tickets go on **Veritaz IT Solutions** (CW company
+  id `19300`, identifier `veritasitsolutions`), not on a client. Beware the lookalikes "Veritas IT
+  Solutions" (19593) and "Veritaz IT" (20018).
 - **Later / maybe**: suggest likely existing tickets for a client.
 
 ## 11. AI note cleanup
