@@ -416,8 +416,10 @@ Interface: each integration implements whichever parts make sense.
 - **Testing against the live instance**: test tickets go on **Veritaz IT Solutions** (CW company
   id `19300`, identifier `veritasitsolutions`), not on a client. Beware the lookalikes "Veritas IT
   Solutions" (19593) and "Veritaz IT" (20018). The standing test ticket is **#106745**
-  ("API test ticket (leave open)", Internal board, owner ecartwright = member 192, contact Evan
-  rather than the company's primary contact).
+  ("API test ticket (please leave open)", Internal board, type New Tool Testing, owner and contact
+  Evan = member 192, Do Not Bill, automatic emails off).
+- **Notes are Markdown in CW**: its editor stores "(…)" as `\(…\)`. Notes fieldtime pushes (and
+  reads back) must be treated as Markdown: escape or allow for it.
 - **Keep the name "fieldtime" out of CW** for now: no app name in summaries, descriptions or
   notes that fieldtime writes. New tickets default the contact to the company's primary contact
   (Veritaz: Vitoria Bianci), which is another reason CW's automatic contact emails stay off.
