@@ -120,7 +120,7 @@ async function main() {
         console.log(`    - (${n.internalAnalysisFlag ? "internal" : "discussion"}) ${JSON.stringify(n.text.slice(0, 80))}`);
       }
 
-      const text = values.text ?? `API test note from fieldtime at ${new Date().toLocaleString()}`;
+      const text = values.text ?? `API test note at ${new Date().toLocaleString()}`;
       const where = values.discussion ? "Discussion" : "Internal Analysis";
       console.log(`\nWill add to ${where}: ${JSON.stringify(text)}`);
       if (!values.yes) {
