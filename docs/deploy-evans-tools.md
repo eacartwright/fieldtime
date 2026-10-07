@@ -94,6 +94,14 @@ never save it in the repo).
 **4d. The hostname.** In the tunnel → **Public hostnames → Add a public hostname**:
 subdomain `fieldtime`, domain `evans.tools`, service type **HTTP**, URL **`127.0.0.1:8081`**. Save.
 
+**4e. Public icons.** iOS fetches the home-screen icon without the Access cookie, so behind the
+login it gets the login page and draws a plain letter "F". Zero Trust → **Access → Applications →
+Add an application → Self-hosted**, name `fieldtime icons`, one public hostname per file on
+`fieldtime.evans.tools` with path `apple-touch-icon.png`, `icon.svg`, `icon-192.png`,
+`icon-512.png`, `manifest.webmanifest`; policy `Public icons`, action **Bypass**, include
+**Everyone**. The more specific paths win over the `fieldtime` app. Then remove and re-add the
+home-screen icon on the iPhone (iOS keeps the old one).
+
 ## 5. Verify
 
 Done 2026-10-06 unless marked.
@@ -102,10 +110,11 @@ Done 2026-10-06 unless marked.
   → **302 to `crimson-frog-8dc4.cloudflareaccess.com`** (the login is in front). A 200 here would
   mean the app is public: stop and fix the Access app (4b).
 - `https://evans.tools` → 200, public; `mediawall.evans.tools` still redirects.
+- The five icon paths from 4e → 200 without login; `/`, `/index.html`, `/api/state` still 302.
 - **[Evan]** Desktop browser: https://fieldtime.evans.tools → email code → the app loads.
 - **[Evan]** *Not done yet:* start and stop a task; status "Synced".
-- **[Evan]** *Not done yet:* iPhone: Safari → same address → sign in → **Share → Add to Home
-  Screen**. Open it from the home screen: the fieldtime icon, no browser bars.
+- **[Evan]** iPhone: Safari → same address → sign in → **Share → Add to Home Screen**: the
+  fieldtime icon (after 4e).
 
 ## 6. Afterwards
 
