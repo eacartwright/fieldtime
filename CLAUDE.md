@@ -102,7 +102,8 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 - Deploy kit done and rehearsed on DEVvm: daily backups, `/api/health`, cache headers, PNG
   icons, "Signed out" detection, `scripts/install.ps1` / `update.ps1` / `run.cmd`.
 - Started M5 groundwork: CW client + dev CLI (ported from the Python `psainteract` prototype, whose
-  company/ticket reads worked against the live instance). Ticket notes not yet tried on a test ticket.
+  company/ticket reads worked against the live instance). Note writes verified 2026-10-06
+  on test ticket #106745 (`npm run cw -- note`, Internal, no notifications).
 - Done 2026-10-06: live on the mini PC at **https://fieldtime.evans.tools** behind Cloudflare
   Access ([docs/deploy-evans-tools.md](docs/deploy-evans-tools.md); iPhone home-screen app and
   reboot test done; CW lookup on).
