@@ -8,11 +8,6 @@ under Status in [CLAUDE.md](../CLAUDE.md).
 
 ## Inbox
 
-- **Billing default per work type (M5 step 3 / M6).** Each work type carries a default
-  Billing value (Billable / Non-billable / No Charge); a new session's Billing comes from its
-  work type. Travel is always Non-billable. CW does this today but unreliably. **Waiting on
-  Evan** for the value of each work type; the profile JSON will hold them until M6 syncs work
-  types from CW.
 - **Edit the profile in the app (later).** Fields, lists and the entry format from Settings,
   instead of editing the profile JSON in the repo.
 
@@ -42,9 +37,6 @@ Items marked **(?)** need a word from Evan on what was meant before building.
   looking up a ticket number. Needs the catch-all ticket number(s) stored in Settings.
 - **Travel quick buttons (M6).** One tap to add a travel session / set the travel work type.
   Pin down: does it add a separate session, and with which work type(s) and default length?
-- **Billing field (M5).** Billable / Non-billable / No Charge per session, defaulting from the
-  work type. A CW profile `choice` field (DESIGN.md §4), not core; M8 maps it onto CW's billing
-  options when pushing.
 - **Bulk push (M8).** Push all of a task's (or a day's) unentered sessions to CW at once from
   Time entries, rather than one by one.
 - **Ticket search window (M6, larger).** A dense results window for finding the right ticket:

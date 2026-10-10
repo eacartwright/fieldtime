@@ -134,7 +134,8 @@ Done 2026-10-06 unless marked.
 - **Profile** (from M5 step 2): add `PROFILE=veritaz-cw` to `C:\Apps\sideshow\.env` by hand.
   Without it the server runs with no job fields: client, ticket # and work type are hidden (not
   lost). The server log says which profile it loaded. The first start after updating also
-  copies the database to `data\sideshow.db.before-v8.db` before changing it.
+  copies the database to `data\sideshow.db.before-v<N>.db` (N = the first new version) before
+  changing it.
 - Record anything that differed from this runbook back in this file (from NOSTROMO; the mini PC's
   clone only pulls).
 
@@ -149,9 +150,9 @@ origin, so changes still waiting in the old address's outbox would stay there.
 1. **[Evan] Sync first.** On the iPhone and the desktop browser, open the old app
    (fieldtime.evans.tools) and check it says **Synced**, not "N unsent". Then don't log anything
    until step 6.
-2. **[Evan] GitHub (optional):** repo Settings → rename `fieldtime` to `sideshow` (GitHub keeps
-   redirecting the old URL). Then on the desktop and the mini PC:
-   `git remote set-url origin https://github.com/eacartwright/sideshow`.
+2. **GitHub:** the repo was renamed to `sideshow` on 2026-10-10 (GitHub redirects the old URL,
+   so the mini PC's pull works either way). On the mini PC, also:
+   `git -C C:\Apps\fieldtime remote set-url origin https://github.com/eacartwright/sideshow`.
 3. **Mini PC, admin PowerShell.** Stop the server, move the folder, and set up under the new name:
    ```powershell
    cd C:\Apps\fieldtime
@@ -164,12 +165,13 @@ origin, so changes still waiting in the old address's outbox would stay there.
    Rename-Item C:\Apps\fieldtime sideshow
    cd C:\Apps\sideshow
    Add-Content .env "PROFILE=veritaz-cw"
-   powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -BackupDir \evnas\Junk\Tech\DBBackups\sideshow
+   powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -BackupDir \\evnas\Junk\Tech\DBBackups\sideshow
    ```
    Expect: "removing the old 'fieldtime' task", the build, then `sideshow is up on
-   http://127.0.0.1:8081`. `data\server.log` should show `renamed …fieldtime.db to …sideshow.db`
-   and `profile: Veritaz / ConnectWise`; `data\sideshow.db.before-v8.db` is the copy from before
-   the M5 migration. `.env` now has `SIDESHOW_BACKUP_DIR` instead of `FIELDTIME_BACKUP_DIR`.
+   http://127.0.0.1:8081`. `data\server.log` should show `renamed …fieldtime.db to …sideshow.db`,
+   `profile: Veritaz / ConnectWise` and `profile lists: 12 items updated, defaults filled on …`;
+   `data\sideshow.db.before-v7.db` is the copy from before the M5 migrations (the mini PC was
+   on v6; checked on its 2026-10-10 backup: all values carried over, billing filled in). `.env` now has `SIDESHOW_BACKUP_DIR` instead of `FIELDTIME_BACKUP_DIR`.
    Old `fieldtime-*.db` backups stay in `DBBackups\fieldtime`; delete that folder whenever.
 4. **[Evan] Cloudflare.** Login before address, as in §4:
    - Access → Applications → `fieldtime`: rename to `sideshow`, **add** hostname

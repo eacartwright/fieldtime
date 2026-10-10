@@ -3,22 +3,23 @@
   "fields": [
     { "key": "client", "label": "Client", "on": "task", "type": "list", "list": "clients", "input": "search", "groupBy": true },
     { "key": "ticket", "label": "Ticket #", "on": "task", "type": "text", "prefix": "#" },
-    { "key": "workType", "label": "Work Type", "on": "session", "type": "list", "list": "workTypes" }
+    { "key": "workType", "label": "Work Type", "on": "session", "type": "list", "list": "workTypes" },
+    { "key": "billing", "label": "Billing", "on": "session", "type": "choice", "options": ["Billable", "Do Not Bill", "No Charge"] }
   ],
   "lists": {
     "workTypes": [
-      "Remote - Business Hours",
-      "Onsite - Business Hours",
-      "In-house - Business Hours",
-      "Office",
-      "Internal Meeting",
-      "Internal Technical",
-      "Communications",
-      "Project Coordination",
-      "SALES - Quoting",
-      "Travel - To Client",
-      "Travel - From Client",
-      "Training - Providing"
+      { "name": "Remote - Business Hours", "defaults": { "billing": "Billable" } },
+      { "name": "Onsite - Business Hours", "defaults": { "billing": "Billable" } },
+      { "name": "In-house - Business Hours", "defaults": { "billing": "Billable" } },
+      { "name": "Office", "defaults": { "billing": "Do Not Bill" } },
+      { "name": "Internal Meeting", "defaults": { "billing": "Do Not Bill" } },
+      { "name": "Internal Technical", "defaults": { "billing": "Do Not Bill" } },
+      { "name": "Communications", "defaults": { "billing": "Do Not Bill" } },
+      { "name": "Project Coordination", "defaults": { "billing": "Do Not Bill" } },
+      { "name": "SALES - Quoting", "defaults": { "billing": "Do Not Bill" } },
+      { "name": "Travel - To Client", "defaults": { "billing": "Do Not Bill" } },
+      { "name": "Travel - From Client", "defaults": { "billing": "Do Not Bill" } },
+      { "name": "Training - Providing", "defaults": { "billing": "Do Not Bill" } }
     ]
   },
   "entryFormat": {
@@ -26,7 +27,7 @@
     "date": "MM/DD/YYYY",
     "time": "h:mm A",
     "hours": "decimal",
-    "fields": ["ticket", "client", "date", "start", "end", "hours", "workType", "notes"]
+    "fields": ["ticket", "client", "date", "start", "end", "hours", "workType", "billing", "notes"]
   },
   "connectwise": { "ticketField": "ticket", "clientField": "client" }
 }

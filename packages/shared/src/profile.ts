@@ -76,6 +76,16 @@ export function profileProblems(p: Profile): string[] {
     if (f.type === "list" && !f.list) out.push(`${at}: a list field needs "list"`);
     if (f.type === "choice" && !f.options?.length) out.push(`${at}: a choice field needs "options"`);
   }
+  for (const [list, entries] of Object.entries(p.lists ?? {})) {
+    for (const e of entries) {
+      const { name, defaults } = listEntry(e);
+      for (const [k, v] of Object.entries(defaults ?? {})) {
+        const f = p.fields.find((x) => x.key === k);
+        if (!f) out.push(`lists.${list} "${name}": default for unknown field "${k}"`);
+        else if (f.type === "choice" && !f.options?.includes(String(v))) out.push(`lists.${list} "${name}": "${v}" isn't one of ${f.key}'s options`);
+      }
+    }
+  }
   for (const k of p.entryFormat?.fields ?? []) {
     if (!keys.has(k) && !(ENTRY_BUILTINS as readonly string[]).includes(k)) out.push(`entryFormat: unknown field "${k}"`);
   }

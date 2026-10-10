@@ -5,10 +5,13 @@ import {
   NO_PROFILE,
   profileProblems,
   slugId,
+  type Fields,
   type ListItem,
   type Ms,
   type Profile,
+  type Session,
   type State,
+  type Task,
 } from "@sideshow/shared";
 
 // The active profile (DESIGN.md §4): packages/server/profiles/<PROFILE>.json, chosen with
@@ -49,4 +52,27 @@ export function profileListChanges(profile: Profile, state: State, now: Ms): Lis
     });
   }
   return out;
+}
+
+/**
+ * Tasks and sessions that use one of `items` but lack a field its defaults give (sessions
+ * from before work types had a billing default), with the defaults filled in. Values already
+ * there are never changed.
+ */
+export function defaultsBackfill(state: State, items: ListItem[], now: Ms): { tasks: Task[]; sessions: Session[] } {
+  const withDefaults = new Map(items.filter((x) => x.defaults).map((x) => [x.id, x.defaults!]));
+  const fill = <T extends { fields: Fields; updatedAt: Ms }>(rec: T): T | null => {
+    const add: Fields = {};
+    for (const v of Object.values(rec.fields)) {
+      for (const [k, d] of Object.entries(withDefaults.get(String(v)) ?? {})) if (!(k in rec.fields) && !(k in add)) add[k] = d;
+    }
+    return Object.keys(add).length ? { ...rec, fields: { ...rec.fields, ...add }, updatedAt: now } : null;
+  };
+  return {
+    tasks: Object.values(state.tasks).map(fill).filter((x): x is Task => !!x),
+    sessions: Object.values(state.sessions)
+      .filter((s) => !s.deleted)
+      .map(fill)
+      .filter((x): x is Session => !!x),
+  };
 }

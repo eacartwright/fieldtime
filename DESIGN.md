@@ -73,7 +73,7 @@ ticket up front, then re-typing times and running notes through AI by hand after
 | | **Core** (code, always on) | **Profile** (data, one JSON file) | **Integration** (code, optional) |
 |---|---|---|---|
 | What it is | The app itself, for any job | The fields a job needs | A connection to an external system |
-| Examples | Projects, tasks, sessions, notes, inbox, schedule, Now stack, day report, entry sheet, export | Client, Ticket #, Assigned to, Work Type, Billing (Billable / Non-billable / No Charge) | CW: search and track tickets/projects, ticket lookup, list sync, push time entries |
+| Examples | Projects, tasks, sessions, notes, inbox, schedule, Now stack, day report, entry sheet, export | Client, Ticket #, Assigned to, Work Type, Billing (Billable / Do Not Bill / No Charge) | CW: search and track tickets/projects, ticket lookup, list sync, push time entries |
 | Without it | — | Plain task and time tracker | Profile fields filled in by hand; copy-to-clipboard still works |
 
 **The core** is complete on its own: projects (§5), tasks, sessions with start, end, deduct and
@@ -95,9 +95,9 @@ its entry format without writing code.
     { "key": "assignee", "label": "Assigned to", "on": "task",    "type": "text" },
     { "key": "workType", "label": "Work Type",   "on": "session", "type": "list", "list": "workTypes" },
     { "key": "billing",  "label": "Billing",     "on": "session", "type": "choice",
-      "options": ["Billable", "Non-billable", "No Charge"], "defaultFrom": "workType" }
+      "options": ["Billable", "Do Not Bill", "No Charge"] }
   ],
-  "lists": { "workTypes": ["Remote - Business Hours", "Onsite - Business Hours", "…"] },
+  "lists": { "workTypes": [{ "name": "Remote - Business Hours", "defaults": { "billing": "Billable" } }, "…"] },
   "entryFormat": { "date": "MM/DD/YYYY", "time": "h:mm A", "hours": "decimal",
                    "fields": ["date", "start", "end", "hours", "workType", "billing", "notes", "ticket"] }
 }
@@ -112,8 +112,11 @@ its entry format without writing code.
   past sessions never point at nothing.
 - **`groupBy`** gives a `list` field its own sidebar view and a page per value (the Client page,
   §5). Another job might group by department, or not at all.
-- **`defaultFrom`** fills a field from the chosen item of another list (a work type carries its
-  billing default).
+- **List item `defaults`**: choosing an item sets the fields its defaults name (a work type sets
+  Billing), unless the same change sets them itself; Billing can still be changed afterwards.
+  The profile supplies them until an integration does (M6). When the profile's defaults
+  change, records that use the item but lack the field get it once (server startup).
+  The real profile is `packages/server/profiles/veritaz-cw.json`; this example is trimmed.
 - **`entryFormat`** drives the Time entries sheet: which fields are shown and copied, and how
   dates, times and hours are written. Every PSA asks for roughly the same things.
 
@@ -578,7 +581,9 @@ None blocking M1. Decisions made along the way:
 - 2026-10-10, three layers (§4): **core** (task-oriented, not ticket- or MSP-oriented),
   **profile** (an inclusion list of fields: omitted means absent) and **integration** (API
   code). Ticket #, client, assignee, work type and billing are all profile fields, not core.
-  Billing has three values at this job: Billable, Non-billable, No Charge (shows on the invoice).
+  Billing has three values at this job, named as in CW: Billable, Do Not Bill, No Charge (shows on
+  the invoice). Each work type carries a default (Remote/Onsite/In-house Business Hours: Billable;
+  every other, including Travel: Do Not Bill), set by the profile until M6 syncs work types.
   There is no charge-to field.
 - 2026-10-10: **one profile at a time**. Switching keeps the values, hidden.
 - 2026-10-10: **projects are core**, nest to any depth, and can hold both my own groupings and

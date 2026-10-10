@@ -651,3 +651,50 @@ describe("projects", () => {
     expect(s.projects.Acme!.title).toBe("Renamed");
   });
 });
+
+describe("list item defaults", () => {
+  // Work types carry a billing default, as in the CW profile.
+  const withWorkTypes = () => {
+    const s = emptyState();
+    run(s, T0, { type: "list.create", itemId: "remote", list: "workTypes", name: "Remote" });
+    run(s, T0, { type: "list.create", itemId: "travel", list: "workTypes", name: "Travel" });
+    run(s, T0, { type: "list.update", itemId: "remote", patch: { defaults: { billing: "Billable" } } });
+    run(s, T0, { type: "list.update", itemId: "travel", patch: { defaults: { billing: "Do Not Bill" } } });
+    startNew(s, T0, "A");
+    return s;
+  };
+  const id = `A@${T0}`;
+
+  it("choosing a work type sets its billing", () => {
+    const s = withWorkTypes();
+    run(s, T0 + M, { type: "session.update", sessionId: id, patch: { fields: { workType: "remote" } } });
+    expect(s.sessions[id]!.fields).toEqual({ workType: "remote", billing: "Billable" });
+    run(s, T0 + 2 * M, { type: "session.update", sessionId: id, patch: { fields: { workType: "travel" } } });
+    expect(s.sessions[id]!.fields).toEqual({ workType: "travel", billing: "Do Not Bill" });
+  });
+
+  it("billing set in the same change wins, and can be changed on its own afterwards", () => {
+    const s = withWorkTypes();
+    run(s, T0 + M, { type: "session.update", sessionId: id, patch: { fields: { workType: "remote", billing: "No Charge" } } });
+    expect(s.sessions[id]!.fields.billing).toBe("No Charge");
+    run(s, T0 + 2 * M, { type: "session.update", sessionId: id, patch: { fields: { billing: "Do Not Bill" } } });
+    expect(s.sessions[id]!.fields).toEqual({ workType: "remote", billing: "Do Not Bill" });
+  });
+
+  it("applies to manual sessions and to old queued categoryId changes", () => {
+    const s = withWorkTypes();
+    run(s, T0 + H, { type: "session.create", sessionId: "m1", taskId: "A", start: T0 - 2 * H, end: T0 - H, fields: { workType: "travel" } });
+    expect(s.sessions.m1!.fields).toEqual({ workType: "travel", billing: "Do Not Bill" });
+    run(s, T0 + H, { type: "session.update", sessionId: id, patch: { categoryId: "remote" } } as unknown as Op);
+    expect(s.sessions[id]!.fields).toEqual({ workType: "remote", billing: "Billable" });
+  });
+
+  it("re-choosing the same work type on an entered session doesn't flag it", () => {
+    const s = withWorkTypes();
+    run(s, T0 + M, { type: "session.update", sessionId: id, patch: { fields: { workType: "remote" } } });
+    stop(s, T0 + H);
+    run(s, T0 + H, { type: "session.update", sessionId: id, patch: { enteredAt: T0 + H } });
+    run(s, T0 + 2 * H, { type: "session.update", sessionId: id, patch: { fields: { workType: "remote" } } });
+    expect(s.sessions[id]).toMatchObject({ enteredAt: T0 + H, changedSinceEntered: false });
+  });
+});

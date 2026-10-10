@@ -9,7 +9,7 @@ import { OP_TYPES, type OpEnvelope } from "@sideshow/shared";
 import { startBackups } from "./backup";
 import { openDb } from "./db";
 import { ConnectWiseClient, CwError, configFromEnv } from "./integrations/connectwise/client";
-import { loadProfile, profileListChanges } from "./profile";
+import { defaultsBackfill, loadProfile, profileListChanges } from "./profile";
 import { Store } from "./store";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -36,8 +36,14 @@ console.log(process.env.PROFILE ? `profile: ${profile.name}` : "profile: none (s
 const db = openDb(DB_FILE);
 const store = new Store(db);
 const backups = startBackups(db, BACKUP_DIR);
-const listChanges = profileListChanges(profile, store.state, Date.now());
-if (listChanges.length) store.seed({ lists: listChanges, projects: [], tasks: [], sessions: [] });
+const now = Date.now();
+const listChanges = profileListChanges(profile, store.state, now);
+if (listChanges.length) {
+  // New or changed defaults (a work type's billing) also fill records that have none yet.
+  const { tasks, sessions } = defaultsBackfill(store.state, listChanges, now);
+  store.seed({ lists: listChanges, projects: [], tasks, sessions });
+  console.log(`profile lists: ${listChanges.length} items updated, defaults filled on ${tasks.length + sessions.length} records`);
+}
 
 // ConnectWise is optional: without the CW_* settings in .env, ticket lookup is off.
 const cw = (() => {

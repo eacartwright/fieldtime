@@ -152,10 +152,13 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   backups still pruned, `fieldtime:pending` outbox carried over, install.ps1 removes the old task.
   Not yet done: the mini PC, hostname and Cloudflare (docs/deploy-evans-tools.md §7), GitHub repo
   name, and this desktop's `C:\Dev\fieldtime` folder.
-- Next: test migration 8 on a real mini PC backup, **Billing** field + work-type billing defaults
-  (waiting on Evan's values; `ListItem.defaults` and the profile's list-entry `defaults` are in
-  place, applying them on work-type change isn't yet), then deploy (§7 of the runbook), then
-  **M1.5 Day calendar**.
+- Done 2026-10-10 (M5 complete): **Billing** session field (Billable / Do Not Bill / No Charge,
+  CW's names) with a default per work type in the profile. The reducer applies a chosen list
+  item's `defaults` (unless the same change sets that field); the server fills missing defaults
+  once when the profile's defaults change. Migrations 7–8 checked on the mini PC's 2026-10-10
+  backup (v6): counts equal, every client / ticket / work type value carried over, billing filled.
+- Next: push and **deploy** (docs/deploy-evans-tools.md §7: rename + M5), then **M1.5 Day
+  calendar**.
 
 ## Working with Evan
 

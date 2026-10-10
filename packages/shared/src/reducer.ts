@@ -105,6 +105,30 @@ function patchFields(fields: Fields, patch: FieldsPatch): boolean {
 }
 
 /**
+ * Apply a fields patch, then the defaults of any list item it picks (a work type brings its
+ * billing), except for keys the patch sets itself. Returns whether anything changed.
+ */
+function setFields(state: State, fields: Fields, patch: FieldsPatch): boolean {
+  const before = JSON.stringify(Object.entries(fields).sort());
+  patchFields(fields, patch);
+  for (const v of Object.values(patch)) {
+    const defaults = typeof v === "string" ? state.lists[v]?.defaults : null;
+    if (!defaults) continue;
+    const rest: FieldsPatch = {};
+    for (const [k, d] of Object.entries(defaults)) if (!(k in patch)) rest[k] = d;
+    patchFields(fields, rest);
+  }
+  return JSON.stringify(Object.entries(fields).sort()) !== before;
+}
+
+/** New fields from a patch, with list item defaults (see setFields). */
+function newFields(state: State, patch: FieldsPatch | undefined): Fields {
+  const fields: Fields = {};
+  setFields(state, fields, patch ?? {});
+  return fields;
+}
+
+/**
  * Ops queued before profiles (migration 8) use groupId (client), ref (ticket #) and
  * categoryId (work type), and group.* for the client list. Map them onto the CW profile's
  * field keys, which is what migration 8 moved the stored values to.
@@ -216,7 +240,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
           id: op.taskId,
           title: op.newTask.title,
           projectId: knownProject(state, op.newTask.projectId),
-          fields: cleanFields(op.newTask.fields),
+          fields: newFields(state, op.newTask.fields),
           description: "",
           status: "open",
           createdAt: at,
@@ -314,7 +338,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         id: op.taskId,
         title: op.title,
         projectId: knownProject(state, op.projectId),
-        fields: cleanFields(op.fields),
+        fields: newFields(state, op.fields),
         description: "",
         status: "open",
         createdAt: at,
@@ -334,7 +358,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         const info = task.refInfo;
         if (info && info.field in fields && ticketNumber(String(fields[info.field] ?? "")) !== info.ref) task.refInfo = null;
         task.fields ??= {};
-        patchFields(task.fields, fields);
+        setFields(state, task.fields, fields);
       }
       if (patch.projectId !== undefined) patch.projectId = knownProject(state, patch.projectId);
       Object.assign(task, patch, { updatedAt: at });
@@ -369,7 +393,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       const content = ["start", "end", "notes", "deductMin"] as const;
       const changed =
         content.some((k) => k in patch && patch[k] !== s[k]) ||
-        (!!fields && patchFields(structuredClone(s.fields), fields));
+        (!!fields && setFields(state, structuredClone(s.fields), fields));
       if (patch.enteredAt) s.changedSinceEntered = false;
       else if (s.enteredAt && changed && !("enteredAt" in patch)) {
         patch.enteredAt = null;
@@ -379,7 +403,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       if (patch.end === null && s.end !== null && openSessions(state).some((o) => o.taskId === s.taskId)) {
         delete patch.end;
       }
-      if (fields) patchFields(s.fields, fields);
+      if (fields) setFields(state, s.fields, fields);
       Object.assign(s, patch, { updatedAt: at });
       if (s.end !== null && s.end < s.start) s.end = s.start;
       t.sessions.add(s.id);
@@ -396,7 +420,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         end: op.end,
         deductMin: 0,
         notes: op.notes ?? "",
-        fields: op.fields !== undefined ? cleanFields(op.fields) : inheritedFields(state, op.taskId, op.start),
+        fields: op.fields !== undefined ? newFields(state, op.fields) : inheritedFields(state, op.taskId, op.start),
         deleted: false,
         updatedAt: at,
         rev: 0,
