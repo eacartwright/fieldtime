@@ -9,7 +9,7 @@ afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
 });
 function tempDb() {
-  const dir = mkdtempSync(join(tmpdir(), "fieldtime-db-"));
+  const dir = mkdtempSync(join(tmpdir(), "sideshow-db-"));
   dirs.push(dir);
   return join(dir, "test.db");
 }

@@ -1,14 +1,14 @@
 {
-  "name": "fieldtime",
+  "name": "sideshow",
   "private": true,
   "type": "module",
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -k -n server,web -c cyan,magenta \"npm run dev -w @fieldtime/server\" \"npm run dev -w @fieldtime/web\"",
-    "build": "npm run build -w @fieldtime/web",
-    "start": "npm run start -w @fieldtime/server",
+    "dev": "concurrently -k -n server,web -c cyan,magenta \"npm run dev -w @sideshow/server\" \"npm run dev -w @sideshow/web\"",
+    "build": "npm run build -w @sideshow/web",
+    "start": "npm run start -w @sideshow/server",
     "test": "vitest run",
     "typecheck": "tsc -p packages/shared && tsc -p packages/server && tsc -p packages/web",
     "cw": "node --env-file-if-exists=.env --import tsx packages/server/src/integrations/connectwise/cli.ts"

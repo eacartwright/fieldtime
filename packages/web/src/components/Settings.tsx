@@ -1,4 +1,4 @@
-import { DEFAULT_SETTINGS } from "@fieldtime/shared";
+import { DEFAULT_SETTINGS } from "@sideshow/shared";
 import { useA, useM } from "../model";
 import { Dialog } from "./Dialog";
 

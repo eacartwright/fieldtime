@@ -1,5 +1,5 @@
 {
-  "name": "@fieldtime/shared",
+  "name": "@sideshow/shared",
   "private": true,
   "type": "module",
   "exports": {

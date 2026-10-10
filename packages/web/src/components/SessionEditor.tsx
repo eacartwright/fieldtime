@@ -1,4 +1,4 @@
-import { durationMs, startOfDay, type Ms, type Session } from "@fieldtime/shared";
+import { durationMs, startOfDay, type Ms, type Session } from "@sideshow/shared";
 import { hm } from "../format";
 import { useA, useNow } from "../model";
 import { DraftTextarea, SessionFieldInputs } from "./fields";

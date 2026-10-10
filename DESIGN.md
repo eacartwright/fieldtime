@@ -1,10 +1,10 @@
-# fieldtime — Design
+# sideshow — Design
 
 *v1.1 · 2026-10-10 · living document, edit freely*
 
 ## 1. Purpose
 
-fieldtime answers **"what was I doing all day?"** It's a personal work log, and the whole app
+sideshow answers **"what was I doing all day?"** It's a personal work log, and the whole app
 serves two goals:
 
 1. **Frictionless start/stop.** Starting, switching and resuming work should feel like a
@@ -26,10 +26,10 @@ different profile and integration, or none at all.
 
 **It works beside the company's tools, not instead of them.** I'll always have to work directly
 in many apps (the PSA, RMM, email, chat). This is my own place for keeping track of all of it,
-for me personally: my own show beside the company's main one. Hence the planned name,
-**sideshow** (backlog: rename).
+for me personally: my own show beside the company's main one. Hence the name,
+**sideshow** (always lowercase; called fieldtime until 2026-10-10).
 
-fieldtime is where work **starts**. Creating a ticket or finding the right one in another system
+sideshow is where work **starts**. Creating a ticket or finding the right one in another system
 must never be a prerequisite for recording work.
 
 ### The problem, concretely (current job)
@@ -63,7 +63,7 @@ ticket up front, then re-typing times and running notes through AI by hand after
 
 - Multiple users, sharing, teams. It's just me.
 - Personal tasks (Todoist stays for those).
-- Replacing Obsidian. fieldtime notes are quick, work-scoped and grouped by client. Deep
+- Replacing Obsidian. sideshow notes are quick, work-scoped and grouped by client. Deep
   reference material stays in the vault.
 - Full project management: no subtasks, dependencies or Gantt charts.
 - Billing-grade rounding. Employers apply their own afterwards.
@@ -418,7 +418,7 @@ toast). Changes save as you go. Recorded timer times are stored exactly until ed
     *new & start*, triple-tap for *back*. This is the "physical button."
   - **Control Center / Lock Screen controls** (iOS 18): one-tap shortcuts without unlocking into
     the app.
-  - **Siri**: "fieldtime note" → dictate → appended to the running session.
+  - **Siri**: "sideshow note" → dictate → appended to the running session.
   - Home-screen widget for the most common shortcuts.
 
 **Windows desktop: a Tauri app wrapping the same UI.** It provides the always-on-top Now bar,
@@ -429,7 +429,7 @@ global hotkeys and a tray icon. A browser tab also works as a fallback.
 ```
  ┌──────────────────┐       ┌──────────────────────────────┐
  │ iPhone PWA       │──┐    │ Mini PC (always on)          │
- │ iOS Shortcuts    │──┤    │  fieldtime server            │
+ │ iOS Shortcuts    │──┤    │  sideshow server             │
  └──────────────────┘  │    │   ├─ core API + live updates │
  ┌──────────────────┐  ├───▶│   ├─ SQLite (one file)       │
  │ Desktop (Tauri)  │──┘    │   ├─ integrations/ (CW, …)   │──▶ external systems
@@ -442,7 +442,7 @@ global hotkeys and a tray icon. A browser tab also works as a fallback.
   enforces the invariant, and holds all external credentials.
 - **Database**: **SQLite**, one file. Daily backup (`VACUUM INTO`, 30 kept) to OneDrive, done by
   the server itself.
-- **Reachability**: public at `https://fieldtime.<domain>` through a **Cloudflare Tunnel**, with
+- **Reachability**: public at `https://sideshow.<domain>` through a **Cloudflare Tunnel**, with
   **Cloudflare Access** as the login (only my email). There's no port forward, so it works from
   any network, including the work PC, with nothing installed there. Tailscale remains the private
   path for development and admin. See [docs/home-hosting.md](docs/home-hosting.md). A simple
@@ -489,7 +489,7 @@ whichever parts make sense.
 
 ### Tracked vs. findable
 
-Nothing is imported in bulk. The external system stays the place where *everything* is; fieldtime
+Nothing is imported in bulk. The external system stays the place where *everything* is; sideshow
 holds what I've chosen to work with.
 
 | | Lives where | Example |
@@ -519,7 +519,7 @@ its coordination ticket is then two clicks.
 - **Client mapping**: CW has duplicates (active / lead / former…). Filter to active client types
   and map each local client to one CW company **once**.
 - **Ticket # workflow** (works today): find the ticket in CW manually, paste its number into the
-  task → fieldtime fetches the summary + company, and from then on **pushes each of that task's
+  task → sideshow fetches the summary + company, and from then on **pushes each of that task's
   sessions as its own time entry on that ticket**. From M6, searching CW and choosing **Track**
   replaces the manual search; pasting a number still works.
 - **Creating a ticket from a task** (planned): the **Ticket Owner** defaults to me (probably; not
@@ -531,10 +531,10 @@ its coordination ticket is then two clicks.
   Solutions" (19593) and "Veritaz IT" (20018). The standing test ticket is **#106745**
   ("API test ticket (please leave open)", Internal board, type New Tool Testing, owner and contact
   Evan = member 192, Do Not Bill, automatic emails off).
-- **Notes are Markdown in CW**: its editor stores "(…)" as `\(…\)`. Notes fieldtime pushes (and
+- **Notes are Markdown in CW**: its editor stores "(…)" as `\(…\)`. Notes sideshow pushes (and
   reads back) must be treated as Markdown: escape or allow for it.
-- **Keep the name "fieldtime" out of CW** for now: no app name in summaries, descriptions or
-  notes that fieldtime writes. New tickets default the contact to the company's primary contact
+- **Keep the name "sideshow" out of CW** for now: no app name in summaries, descriptions or
+  notes that sideshow writes. New tickets default the contact to the company's primary contact
   (Veritaz: Vitoria Bianci), which is another reason CW's automatic contact emails stay off.
 - **Duplicates, measured 2026-10-06**: 745 companies; 566 Active (326 type Customer, 203 Client,
   28 Lead…). CW's company search shows ~385, a filter not yet identified. Suspicion: many
@@ -584,3 +584,5 @@ None blocking M1. Decisions made along the way:
 - 2026-10-10: **projects are core**, nest to any depth, and can hold both my own groupings and
   linked CW projects. CW items are **tracked** only when I choose; everything else stays
   **findable** by live search (§10).
+- 2026-10-10: renamed **fieldtime → sideshow** (§1), lowercase everywhere except a few titles
+  (the README heading). It replaced "juggle" (chosen 2026-10-08, never used).

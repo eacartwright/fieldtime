@@ -1,6 +1,6 @@
 {
-  "name": "fieldtime",
-  "short_name": "fieldtime",
+  "name": "sideshow",
+  "short_name": "sideshow",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0e1116",

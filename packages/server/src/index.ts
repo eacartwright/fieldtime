@@ -2,10 +2,10 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { existsSync } from "node:fs";
+import { existsSync, renameSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { OP_TYPES, type OpEnvelope } from "@fieldtime/shared";
+import { OP_TYPES, type OpEnvelope } from "@sideshow/shared";
 import { startBackups } from "./backup";
 import { openDb } from "./db";
 import { ConnectWiseClient, CwError, configFromEnv } from "./integrations/connectwise/client";
@@ -13,8 +13,21 @@ import { loadProfile, profileListChanges } from "./profile";
 import { Store } from "./store";
 
 const PORT = Number(process.env.PORT ?? 8787);
-const DB_FILE = process.env.FIELDTIME_DB ?? fileURLToPath(new URL("../../../data/fieldtime.db", import.meta.url));
-const BACKUP_DIR = process.env.FIELDTIME_BACKUP_DIR ?? join(dirname(DB_FILE), "backups");
+// The app was called fieldtime until 2026-10: FIELDTIME_* settings still work.
+const setting = (name: string) => process.env[`SIDESHOW_${name}`] ?? process.env[`FIELDTIME_${name}`];
+const DB_FILE = setting("DB") ?? defaultDbFile();
+const BACKUP_DIR = setting("BACKUP_DIR") ?? join(dirname(DB_FILE), "backups");
+
+/** data/sideshow.db, renaming data/fieldtime.db (and its WAL files) to it the first time. */
+function defaultDbFile(): string {
+  const file = fileURLToPath(new URL("../../../data/sideshow.db", import.meta.url));
+  const old = fileURLToPath(new URL("../../../data/fieldtime.db", import.meta.url));
+  if (!existsSync(file) && existsSync(old)) {
+    for (const suffix of ["", "-wal", "-shm"]) if (existsSync(old + suffix)) renameSync(old + suffix, file + suffix);
+    console.log(`renamed ${old} to ${file}`);
+  }
+  return file;
+}
 const WEB_DIST = fileURLToPath(new URL("../../web/dist", import.meta.url));
 
 // Load the profile first: a broken profile file should stop the server before anything changes.
@@ -105,5 +118,5 @@ if (existsSync(WEB_DIST)) {
 }
 
 serve({ fetch: app.fetch, port: PORT, hostname: "0.0.0.0" }, (info) => {
-  console.log(`fieldtime server on http://localhost:${info.port}  (db: ${DB_FILE}, backups: ${BACKUP_DIR})`);
+  console.log(`sideshow server on http://localhost:${info.port}  (db: ${DB_FILE}, backups: ${BACKUP_DIR})`);
 });

@@ -7,7 +7,8 @@ import type { DB } from "./db";
 // makes that day's file, so it holds everything up to the end of the previous day.
 
 const KEEP = 30;
-const FILE = /^fieldtime-\d{4}-\d{2}-\d{2}\.db$/;
+// fieldtime-* are from before the rename; they count toward KEEP and age out first (they sort first).
+const FILE = /^(sideshow|fieldtime)-\d{4}-\d{2}-\d{2}\.db$/;
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 const localDate = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -20,7 +21,7 @@ export function startBackups(db: DB, dir: string) {
   const run = () => {
     try {
       mkdirSync(dir, { recursive: true });
-      const file = join(dir, `fieldtime-${localDate(new Date())}.db`);
+      const file = join(dir, `sideshow-${localDate(new Date())}.db`);
       if (!existsSync(file)) {
         db.exec(`VACUUM INTO '${file.replaceAll("'", "''")}'`);
         console.log(`backup: ${file}`);

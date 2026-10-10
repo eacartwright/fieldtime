@@ -26,7 +26,7 @@ import {
   type State,
   type Task,
   type TaskPatch,
-} from "@fieldtime/shared";
+} from "@sideshow/shared";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, SignedOut, sync, type Snapshot } from "./sync";
 import { showToast } from "./toast";

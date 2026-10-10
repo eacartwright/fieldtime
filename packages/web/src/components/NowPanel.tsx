@@ -1,4 +1,4 @@
-import { durationMs, firstLine, type Id, type Session } from "@fieldtime/shared";
+import { durationMs, firstLine, type Id, type Session } from "@sideshow/shared";
 import { clock, dayLabel, hm, timeOfDay } from "../format";
 import { taskTotals, useA, useM, useNow, type TaskInfo } from "../model";
 import { DraftInput, DraftTextarea, ProjectPicker, SessionFieldInputs, TaskFieldInputs, TicketInfo } from "./fields";

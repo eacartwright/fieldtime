@@ -1,4 +1,4 @@
-import { projectPath, type Id } from "@fieldtime/shared";
+import { projectPath, type Id } from "@sideshow/shared";
 import { useState } from "react";
 import { useA, useM, useNow } from "../model";
 import { Dialog } from "./Dialog";

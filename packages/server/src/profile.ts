@@ -9,7 +9,7 @@ import {
   type Ms,
   type Profile,
   type State,
-} from "@fieldtime/shared";
+} from "@sideshow/shared";
 
 // The active profile (DESIGN.md §4): packages/server/profiles/<PROFILE>.json, chosen with
 // PROFILE in .env. Without one, the app is a plain task and time tracker; values already

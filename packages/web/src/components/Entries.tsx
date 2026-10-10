@@ -9,7 +9,7 @@ import {
   type Id,
   type Ms,
   type Session,
-} from "@fieldtime/shared";
+} from "@sideshow/shared";
 import { useRef, useState } from "react";
 import { copyText } from "../clipboard";
 import { dayLabel, entryDate, entryHours, entryTime, hm, whenLabel } from "../format";

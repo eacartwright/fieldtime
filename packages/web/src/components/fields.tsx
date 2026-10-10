@@ -1,4 +1,4 @@
-import { projectPath, ticketNumber, type FieldDef, type FieldValue, type Id, type Session, type Task } from "@fieldtime/shared";
+import { projectPath, ticketNumber, type FieldDef, type FieldValue, type Id, type Session, type Task } from "@sideshow/shared";
 import { useEffect, useRef, useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { useA, useM } from "../model";
 

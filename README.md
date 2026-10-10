@@ -1,4 +1,4 @@
-# fieldtime
+# Sideshow
 
 A personal work log: frictionless start/stop and note-taking for whatever you're working on,
 on desktop and phone. See [DESIGN.md](DESIGN.md) for the full design.
@@ -23,14 +23,14 @@ npm run dev
 - PowerShell refusing to run `npm` ("running scripts is disabled"): run
   `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` once, or use Command Prompt.
 
-Data lives in `data/fieldtime.db` (SQLite, git-ignored). Set `FIELDTIME_DB` to use another file.
-The server also writes a daily copy to `data/backups/` (or `FIELDTIME_BACKUP_DIR`), keeping 30.
+Data lives in `data/sideshow.db` (SQLite, git-ignored). Set `SIDESHOW_DB` to use another file.
+The server also writes a daily copy to `data/backups/` (or `SIDESHOW_BACKUP_DIR`), keeping 30.
 
 ## Deploy
 
 The always-on copy runs on a home mini PC behind Cloudflare Tunnel + Access; see
 [docs/home-hosting.md](docs/home-hosting.md). In short, on that PC (admin PowerShell, in
-`C:\Apps\fieldtime`): `scripts\install.ps1` once, then `scripts\update.ps1` after each push to `main`.
+`C:\Apps\sideshow`): `scripts\install.ps1` once, then `scripts\update.ps1` after each push to `main`.
 
 ## Using it
 

@@ -1,4 +1,4 @@
-import { matchesQuery } from "@fieldtime/shared";
+import { matchesQuery } from "@sideshow/shared";
 import { useEffect, useRef, useState } from "react";
 import { hm, whenLabel } from "../format";
 import { taskTotals, useA, useM, type TaskInfo } from "../model";

@@ -1,4 +1,4 @@
-# fieldtime — Backlog
+# sideshow — Backlog
 
 Observations, requested changes and ideas from using the app. They're a record, not a
 commitment: an item is built only when Evan picks it. New items go in **Inbox** first, then get
@@ -63,14 +63,3 @@ Items marked **(?)** need a word from Evan on what was meant before building.
 - **Native apps (M3 and "later").** What it would take to make proper Android, iOS and
   Windows apps, with native gestures such as swipe-out menus. Windows is M3 (Tauri); write up
   the options (Tauri mobile, Capacitor, React Native) before committing.
-- **Rename the app to sideshow** (chosen 2026-10-10, replacing "juggle" from 2026-10-08).
-  "fieldtime" no longer fits: the work isn't only field work, and the app is turning into task
-  management first, with time entry beside it. A sideshow is the secondary production beside the
-  circus's main show: the company's tools are the main show, and sideshow is my own space beside
-  them (DESIGN.md §1). Written **lowercase everywhere** ("sideshow", like "fieldtime" today: the
-  app header, the UI, docs, `@sideshow/*`, `sideshow.evans.tools`), except a few title spots
-  such as the `# Sideshow` heading of the GitHub README. The rename touches ~150 mentions: package names (`@fieldtime/*`), the UI, the scripts
-  and scheduled task, `C:\Apps\fieldtime`, the database file, the backup folder and file names,
-  the `fieldtime.evans.tools` hostname and its Cloudflare Access app, and the iPhone home-screen
-  app (re-add it after). Do it in one pass, before M3 adds more places. Keep it out of CW
-  as before.

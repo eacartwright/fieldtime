@@ -2,10 +2,10 @@
 
 > **Superseded (2026-10-04):** development moved to **DEVvm**, a Windows 11 VM in VMware
 > Workstation on the desktop, and on 2026-10-06 to the desktop itself (NOSTROMO), at
-> `C:\Dev\fieldtime`. The mini PC only *hosts* the real app ([home-hosting.md](home-hosting.md)).
+> `C:\Dev\sideshow`. The mini PC only *hosts* the real app ([home-hosting.md](home-hosting.md)).
 > The remote-access notes below still apply if you reach the dev machine from other devices.
 
-The mini PC (Intel N97, Windows 11, always on) is the **one place fieldtime is developed**. Code,
+The mini PC (Intel N97, Windows 11, always on) is the **one place sideshow is developed**. Code,
 dev servers, the scratch DB and every Claude Code conversation live there. The laptop, desktop and
 iPhone are windows onto it. Nothing gets copied between machines.
 
@@ -54,7 +54,7 @@ app to start it, test it and read its logs. So keep one host and reach it from e
 - [ ] Add the Claude desktop app to startup apps so it comes back after a reboot.
 
 ### 3. The code
-- [ ] Clone the repo to **`C:\Dev\fieldtime`**. Using the same path as the other PCs keeps Claude's
+- [ ] Clone the repo to **`C:\Dev\sideshow`**. Using the same path as the other PCs keeps Claude's
       project folder name (`C--Dev-fieldtime`) the same.
 - [ ] `npm install`, then `npm test` and `npm run typecheck` to confirm it works.
 - [ ] Copy Claude's memory once from the current PC:
@@ -72,7 +72,7 @@ app to start it, test it and read its logs. So keep one host and reach it from e
 - [ ] VS Code → install **Remote - SSH** → *Connect to Host* → `evan@<minipc>`. If the mini PC uses
       a Microsoft account, the SSH user may be your email or the local folder name; check with
       `whoami` on the mini PC. Set up an SSH key to skip the password prompts. Open
-      `C:\Dev\fieldtime`.
+      `C:\Dev\sideshow`.
   - The Claude Code VS Code extension is optional. Installed in a Remote-SSH window, it runs *on
     the mini PC* and uses the same conversations as the desktop app there, which is fine. For
     chatting, the claude.ai/code tab is simpler.
@@ -88,20 +88,20 @@ app to start it, test it and read its logs. So keep one host and reach it from e
 
 ## Keep dev and the real app separate
 
-The mini PC will also run the always-on fieldtime you actually log work in (see DESIGN.md,
+The mini PC will also run the always-on sideshow you actually log work in (see DESIGN.md,
 architecture section). Keep the two apart so a half-finished change can't break the real log:
 
 | | Dev | Real app |
 |---|---|---|
-| Folder | `C:\Dev\fieldtime` | `C:\Apps\fieldtime` (a separate clone that only pulls `main`) |
+| Folder | `C:\Dev\sideshow` | `C:\Apps\sideshow` (a separate clone that only pulls `main`) |
 | Ports | 5173 web / 8787 API (`npm run dev`) | 8081, public via Cloudflare Tunnel ([home-hosting.md](home-hosting.md)) |
-| DB | `data/fieldtime.db` in the dev folder, or a scratch `FIELDTIME_DB` | `C:\Apps\fieldtime\data\fieldtime.db` + nightly backup |
+| DB | `data/sideshow.db` in the dev folder, or a scratch `SIDESHOW_DB` | `C:\Apps\sideshow\data\sideshow.db` + nightly backup |
 
 Hosting the real app (tunnel, login, auto-start) is covered in [home-hosting.md](home-hosting.md).
 
 ## Everyday flow
 
-1. Wherever you are, open claude.ai/code (or the Claude app) and pick the fieldtime session, or
+1. Wherever you are, open claude.ai/code (or the Claude app) and pick the sideshow session, or
    RDP in and start a new one.
 2. Ask for changes. Claude edits files and runs tests on the mini PC.
 3. Check the result at `http://<minipc>:5173` from whatever device you're holding.

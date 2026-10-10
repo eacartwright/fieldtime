@@ -1,5 +1,5 @@
 {
-  "name": "@fieldtime/web",
+  "name": "@sideshow/web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@fieldtime/shared": "*",
+    "@sideshow/shared": "*",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

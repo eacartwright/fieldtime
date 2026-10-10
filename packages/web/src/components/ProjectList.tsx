@@ -1,4 +1,4 @@
-import type { Id } from "@fieldtime/shared";
+import type { Id } from "@sideshow/shared";
 import { useState } from "react";
 import { whenLabel } from "../format";
 import { useA, useM, useNow } from "../model";

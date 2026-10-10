@@ -1,4 +1,4 @@
-import { startOfDay, type EntryFormat, type Ms } from "@fieldtime/shared";
+import { startOfDay, type EntryFormat, type Ms } from "@sideshow/shared";
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 

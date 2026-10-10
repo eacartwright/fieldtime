@@ -1,4 +1,4 @@
-import type { Fields, Id } from "@fieldtime/shared";
+import type { Fields, Id } from "@sideshow/shared";
 import { useRef, useState } from "react";
 import { useA, useM } from "../model";
 import { Dialog } from "./Dialog";

@@ -9,7 +9,7 @@ import {
   type OpEnvelope,
   type Profile,
   type State,
-} from "@fieldtime/shared";
+} from "@sideshow/shared";
 
 // Client side of sync. What the UI shows is always:
 //   the last state confirmed by the server + ops not yet confirmed, replayed on top.
@@ -35,8 +35,10 @@ export interface Snapshot {
 }
 
 // The cache is only a head start until the server answers, so a new shape just gets a new key.
-const CACHE_KEY = "fieldtime:cache:2";
-const PENDING_KEY = "fieldtime:pending";
+const CACHE_KEY = "sideshow:cache:2";
+const PENDING_KEY = "sideshow:pending";
+/** From before the rename (2026-10). Unsent ops there are carried over, on the same address. */
+const OLD_PENDING_KEY = "fieldtime:pending";
 const KINDS = ["lists", "projects", "tasks", "sessions"] as const;
 
 export class SignedOut extends Error {}
@@ -90,6 +92,18 @@ class Sync {
       this.loaded = true;
     }
     this.pending = read<OpEnvelope[]>(PENDING_KEY) ?? [];
+    const old = read<OpEnvelope[]>(OLD_PENDING_KEY);
+    if (old) {
+      // Ops already sent are skipped by the server (by id), so a repeat is harmless.
+      this.pending = [...old, ...this.pending.filter((p) => !old.some((o) => o.id === p.id))];
+      write(PENDING_KEY, this.pending);
+      try {
+        localStorage.removeItem(OLD_PENDING_KEY);
+        localStorage.removeItem("fieldtime:cache");
+      } catch {
+        /* storage unavailable */
+      }
+    }
     this.snapshot = this.build();
   }
 

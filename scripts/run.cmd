@@ -1,6 +1,6 @@
 @echo off
-rem Runs the fieldtime server and restarts it whenever it exits.
-rem Started at boot by the "fieldtime" scheduled task (see install.ps1).
+rem Runs the sideshow server and restarts it whenever it exits.
+rem Started at boot by the "sideshow" scheduled task (see install.ps1).
 rem Settings come from .env in the repo root; output goes to data\server.log.
 cd /d "%~dp0.."
 if not exist data mkdir data

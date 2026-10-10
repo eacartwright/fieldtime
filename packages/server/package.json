@@ -1,5 +1,5 @@
 {
-  "name": "@fieldtime/server",
+  "name": "@sideshow/server",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,7 +7,7 @@
     "start": "node --env-file-if-exists=../../.env --import tsx src/index.ts"
   },
   "dependencies": {
-    "@fieldtime/shared": "*",
+    "@sideshow/shared": "*",
     "@hono/node-server": "^2.1.1",
     "hono": "^4.13.9"
   },

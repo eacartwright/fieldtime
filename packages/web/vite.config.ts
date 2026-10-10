@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
       host: true,
       port: 5173,
       proxy: {
-        "/api": env.FIELDTIME_API ?? `http://localhost:${env.PORT ?? 8787}`,
+        "/api": env.SIDESHOW_API ?? env.FIELDTIME_API ?? `http://localhost:${env.PORT ?? 8787}`,
       },
     },
   };

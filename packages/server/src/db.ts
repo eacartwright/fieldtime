@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { DEFAULT_SETTINGS, type Changes, type ListItem, type Project, type Session, type Settings, type State, type Task } from "@fieldtime/shared";
+import { DEFAULT_SETTINGS, type Changes, type ListItem, type Project, type Session, type Settings, type State, type Task } from "@sideshow/shared";
 
 // SQLite persistence. Plain tables with one row per entity, so the file stays
 // readable in any SQLite browser. Schema changes go in MIGRATIONS, in order.

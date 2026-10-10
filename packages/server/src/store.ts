@@ -5,7 +5,7 @@ import {
   type Changes,
   type OpEnvelope,
   type State,
-} from "@fieldtime/shared";
+} from "@sideshow/shared";
 import { getRev, loadState, saveChanges, setRev, transaction, type DB } from "./db";
 
 // The authoritative state: held in memory, persisted to SQLite on every change.

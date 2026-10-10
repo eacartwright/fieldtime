@@ -1,4 +1,4 @@
-# fieldtime — notes for Claude
+# sideshow — notes for Claude
 
 A personal work log for an MSP tech: frictionless start/stop of tasks plus quick notes, on
 Windows desktops and an iPhone. **[DESIGN.md](DESIGN.md) is the spec**; read the relevant section
@@ -15,10 +15,10 @@ npm run typecheck  # tsc (TypeScript 7) over all three packages
 npm run cw -- companies   # ConnectWise dev CLI (companies [--all] | diag | dupes | tickets <text> | note <id>)
 ```
 
-Data is `data/fieldtime.db` (SQLite, git-ignored, **per machine**). To test without touching the
+Data is `data/sideshow.db` (SQLite, git-ignored, **per machine**). To test without touching the
 user's real data, run on other ports against a scratch DB:
-`FIELDTIME_DB=<scratch>/t.db PORT=7797 node --import tsx packages/server/src/index.ts` and
-`FIELDTIME_API=http://localhost:7797 npx vite --port 5183` (from `packages/web`), or `npm run build`
+`SIDESHOW_DB=<scratch>/t.db PORT=7797 node --import tsx packages/server/src/index.ts` and
+`SIDESHOW_API=http://localhost:7797 npx vite --port 5183` (from `packages/web`), or `npm run build`
 and use the server alone. (On NOSTROMO 8577–8976 is reserved by Windows except 8787; see Gotchas.)
 Browser checks: `playwright-core` with `channel: "msedge"` (Edge is installed; no browser download),
 installed in a scratch folder, headless. For CW, point the scratch server at a fake CW with
@@ -118,7 +118,7 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
 - Started M5 groundwork: CW client + dev CLI (ported from the Python `psainteract` prototype, whose
   company/ticket reads worked against the live instance). Note writes verified 2026-10-06
   on test ticket #106745 (`npm run cw -- note`, Internal, no notifications).
-- Done 2026-10-06: live on the mini PC at **https://fieldtime.evans.tools** behind Cloudflare
+- Done 2026-10-06: live on the mini PC (as fieldtime.evans.tools; **https://sideshow.evans.tools** after the rename) behind Cloudflare
   Access ([docs/deploy-evans-tools.md](docs/deploy-evans-tools.md); iPhone home-screen app and
   reboot test done; CW lookup on).
 - Done (M5): **ticket lookup** — entering a ticket # (Task details, Time entries) fetches it from
@@ -146,19 +146,25 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   generic field UI everywhere (Now card and + Inbox now have Ticket # too); Time entries from
   `entryFormat`; old queued ops upgraded by the reducer; pre-migration DB copy. Checked on a
   seeded v7 copy with the CW profile and with none.
-- Next: **Billing** field + work-type billing defaults (waiting on Evan's values; `ListItem.defaults`
-  and the profile's list-entry `defaults` are in place, applying them on work-type change isn't
-  yet), then the **rename to sideshow** and deploy (PROFILE=veritaz-cw in the mini PC's .env),
-  then **M1.5 Day calendar**.
+- Done 2026-10-10: **renamed to sideshow** in code, scripts and docs (packages `@sideshow/*`,
+  `data/sideshow.db`, `SIDESHOW_*` settings, task `sideshow`). Compatibility kept on purpose:
+  `FIELDTIME_*` settings still read, `data/fieldtime.db` renamed on first start, `fieldtime-*`
+  backups still pruned, `fieldtime:pending` outbox carried over, install.ps1 removes the old task.
+  Not yet done: the mini PC, hostname and Cloudflare (docs/deploy-evans-tools.md §7), GitHub repo
+  name, and this desktop's `C:\Dev\fieldtime` folder.
+- Next: test migration 8 on a real mini PC backup, **Billing** field + work-type billing defaults
+  (waiting on Evan's values; `ListItem.defaults` and the profile's list-entry `defaults` are in
+  place, applying them on work-type change isn't yet), then deploy (§7 of the runbook), then
+  **M1.5 Day calendar**.
 
 ## Working with Evan
 
 - Commit and push only when asked.
 - Prefers the Claude desktop app / claude.ai over the terminal. Give GUI steps, not shell
   commands, where possible.
-- Develops on **NOSTROMO** (the desktop, `C:\Dev\fieldtime`) since 2026-10-06; DEVvm (a Win 11 VM)
+- Develops on **NOSTROMO** (the desktop, `C:\Dev\fieldtime`: the folder kept its old name) since 2026-10-06; DEVvm (a Win 11 VM)
   before that. Tests and browser checks are headless (vitest; Playwright + Edge), so they never
   take the screen. The VM is only worth it again for real-window work like M3 (Tauri).
 - Uses two Windows PCs and an iPhone 13; the mini PC (Intel N97, Win 11) hosts the real app at
-  `C:\Apps\fieldtime`, port 8081 (8080 is Caddy's), backups to the NAS. See
+  `C:\Apps\sideshow`, port 8081 (8080 is Caddy's), backups to the NAS. See
   [docs/deploy-evans-tools.md](docs/deploy-evans-tools.md).

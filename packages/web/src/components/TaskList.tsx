@@ -1,4 +1,4 @@
-import { startOfDay, type Id } from "@fieldtime/shared";
+import { startOfDay, type Id } from "@sideshow/shared";
 import { useState } from "react";
 import { hm, whenLabel } from "../format";
 import { taskTotals, useA, useM, useNow, type TaskInfo } from "../model";

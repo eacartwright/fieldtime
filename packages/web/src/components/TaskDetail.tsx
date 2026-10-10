@@ -1,4 +1,4 @@
-import { durationMs, startOfDay, type Id, type Session } from "@fieldtime/shared";
+import { durationMs, startOfDay, type Id, type Session } from "@sideshow/shared";
 import { useState } from "react";
 import { dayLabel, hm, timeOfDay } from "../format";
 import { sessionFieldTexts, useA, useM, useNow } from "../model";

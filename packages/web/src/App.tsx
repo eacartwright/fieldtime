@@ -1,4 +1,4 @@
-import type { Id } from "@fieldtime/shared";
+import type { Id } from "@sideshow/shared";
 import { useEffect, useRef, useState } from "react";
 import { Entries } from "./components/Entries";
 import { InboxAdd } from "./components/InboxAdd";
@@ -72,7 +72,7 @@ export function App() {
     <ModelContext.Provider value={model}>
       <ActionsContext.Provider value={actions}>
         <header className="app-header">
-          <h1>fieldtime</h1>
+          <h1>sideshow</h1>
           <SyncBadge model={model} />
           <nav className="actionbar" aria-label="Actions">
             <button className="btn" onClick={() => setOverlay({ kind: "switcher" })} title="Find a task (Ctrl+K)">
