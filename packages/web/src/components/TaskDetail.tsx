@@ -3,7 +3,7 @@ import { useState } from "react";
 import { dayLabel, hm, timeOfDay } from "../format";
 import { useA, useM, useNow } from "../model";
 import { Dialog } from "./Dialog";
-import { DraftInput, DraftTextarea, GroupPicker, TicketInfo } from "./fields";
+import { DraftInput, DraftTextarea, GroupPicker, ProjectPicker, TicketInfo } from "./fields";
 import { defaultManualSpan, SessionEditor } from "./SessionEditor";
 
 // Everything about one task: its fields, and its sessions grouped by day.
@@ -62,6 +62,7 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
           onValue={(title) => a.updateTask(taskId, { title })}
         />
         <div className="row-actions">
+          <ProjectPicker value={task.projectId ?? null} onChange={(projectId) => a.updateTask(taskId, { projectId })} />
           <GroupPicker value={task.groupId} onChange={(groupId) => a.updateTask(taskId, { groupId })} />
           <DraftInput
             className="ref-input"

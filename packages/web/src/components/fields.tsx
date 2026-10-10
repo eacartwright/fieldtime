@@ -1,4 +1,4 @@
-import { ticketNumber, type Id, type Task } from "@fieldtime/shared";
+import { projectPath, ticketNumber, type Id, type Task } from "@fieldtime/shared";
 import { useEffect, useRef, useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { useA, useM } from "../model";
 
@@ -71,25 +71,31 @@ export function DraftTextarea({ value, onValue, resetKey, textareaRef, ...rest }
   );
 }
 
-/** Pick a client (group), or type a new name to add one. */
-export function GroupPicker({ value, onChange }: { value: Id | null; onChange: (id: Id | null) => void }) {
-  const m = useM();
-  const a = useA();
+type Option = { key: string; text: string; pick: () => void };
+
+/**
+ * A chip that opens a find-or-add list. `options(query)` gives the choices for what's
+ * typed so far (lowercased, trimmed).
+ */
+function ComboPicker({
+  chip,
+  chipTitle,
+  set,
+  placeholder,
+  options: optionsFor,
+}: {
+  chip: string;
+  /** Tooltip for the chip. */
+  chipTitle?: string;
+  set: boolean;
+  placeholder: string;
+  options: (query: string, typed: string) => Option[];
+}) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const box = useRef<HTMLDivElement>(null);
-  const current = value ? m.view.groups[value] : undefined;
-  const label = m.config.groupLabel;
-
-  const query = q.trim().toLowerCase();
-  const matches = m.groups.filter((g) => g.name.toLowerCase().includes(query)).slice(0, 8);
-  const exact = m.groups.some((g) => g.name.toLowerCase() === query);
-  const options: { key: string; text: string; pick: () => void }[] = [
-    ...matches.map((g) => ({ key: g.id, text: g.name, pick: () => onChange(g.id) })),
-    ...(query && !exact ? [{ key: "+", text: `Add “${q.trim()}”`, pick: () => onChange(a.createGroup(q)) }] : []),
-    ...(value ? [{ key: "-", text: `No ${label.toLowerCase()}`, pick: () => onChange(null) }] : []),
-  ];
+  const options = optionsFor(q.trim().toLowerCase(), q.trim());
 
   const close = () => {
     setOpen(false);
@@ -103,8 +109,8 @@ export function GroupPicker({ value, onChange }: { value: Id | null; onChange: (
 
   if (!open) {
     return (
-      <button type="button" className={`chip ${current ? "chip-set" : ""}`} onClick={() => setOpen(true)}>
-        {current ? current.name : `+ ${label}`}
+      <button type="button" className={`chip ${set ? "chip-set" : ""}`} title={chipTitle} onClick={() => setOpen(true)}>
+        {chip}
       </button>
     );
   }
@@ -119,7 +125,7 @@ export function GroupPicker({ value, onChange }: { value: Id | null; onChange: (
       <input
         autoFocus
         value={q}
-        placeholder={`Find or add ${label.toLowerCase()}…`}
+        placeholder={placeholder}
         onChange={(e) => {
           setQ(e.target.value);
           setSel(0);
@@ -150,6 +156,75 @@ export function GroupPicker({ value, onChange }: { value: Id | null; onChange: (
         {options.length === 0 && <li className="muted pad">Type a name to add one</li>}
       </ul>
     </div>
+  );
+}
+
+/** Pick a client (group), or type a new name to add one. */
+export function GroupPicker({ value, onChange }: { value: Id | null; onChange: (id: Id | null) => void }) {
+  const m = useM();
+  const a = useA();
+  const current = value ? m.view.groups[value] : undefined;
+  const label = m.config.groupLabel;
+  return (
+    <ComboPicker
+      chip={current ? current.name : `+ ${label}`}
+      set={!!current}
+      placeholder={`Find or add ${label.toLowerCase()}…`}
+      options={(query, typed) => [
+        ...m.groups
+          .filter((g) => g.name.toLowerCase().includes(query))
+          .slice(0, 8)
+          .map((g) => ({ key: g.id, text: g.name, pick: () => onChange(g.id) })),
+        ...(query && !m.groups.some((g) => g.name.toLowerCase() === query)
+          ? [{ key: "+", text: `Add “${typed}”`, pick: () => onChange(a.createGroup(typed)) }]
+          : []),
+        ...(value ? [{ key: "-", text: `No ${label.toLowerCase()}`, pick: () => onChange(null) }] : []),
+      ]}
+    />
+  );
+}
+
+/**
+ * Pick a project, or type a name to add a new top-level one. `exclude` leaves out a
+ * project and everything inside it (choosing where a project itself goes).
+ */
+export function ProjectPicker({
+  value,
+  onChange,
+  none = "No project",
+  empty = "+ Project",
+  exclude,
+}: {
+  value: Id | null;
+  onChange: (id: Id | null) => void;
+  none?: string;
+  /** The chip when no project is chosen. */
+  empty?: string;
+  exclude?: Id;
+}) {
+  const m = useM();
+  const a = useA();
+  const current = m.projects.find((p) => p.project.id === value);
+  const choices = exclude
+    ? m.projects.filter((p) => !projectPath(m.view, p.project.id).some((x) => x.id === exclude))
+    : m.projects;
+  return (
+    <ComboPicker
+      chip={current ? current.project.title || "Untitled project" : empty}
+      chipTitle={current?.path}
+      set={!!current}
+      placeholder="Find or add project…"
+      options={(query, typed) => [
+        ...choices
+          .filter((p) => p.path.toLowerCase().includes(query))
+          .slice(0, 10)
+          .map((p) => ({ key: p.project.id, text: p.path, pick: () => onChange(p.project.id) })),
+        ...(query && !m.projects.some((p) => p.project.title.toLowerCase() === query)
+          ? [{ key: "+", text: `Add project “${typed}”`, pick: () => onChange(a.createProject(typed, null)) }]
+          : []),
+        ...(value ? [{ key: "-", text: none, pick: () => onChange(null) }] : []),
+      ]}
+    />
   );
 }
 
@@ -222,5 +297,42 @@ export function TicketInfo({ task }: { task: Task }) {
         ↻
       </button>
     </p>
+  );
+}
+
+/** A one-line "type a name, press Add" form. */
+export function InlineAdd({
+  value,
+  onValue,
+  placeholder,
+  onAdd,
+}: {
+  value: string;
+  onValue: (v: string) => void;
+  placeholder: string;
+  onAdd: (title: string) => void;
+}) {
+  return (
+    <form
+      className="row-actions inline-add"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!value.trim()) return;
+        onAdd(value.trim());
+        onValue("");
+      }}
+    >
+      <input
+        className="search"
+        value={value}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        autoCapitalize="sentences"
+        onChange={(e) => onValue(e.target.value)}
+      />
+      <button type="submit" className="btn" disabled={!value.trim()}>
+        Add
+      </button>
+    </form>
   );
 }

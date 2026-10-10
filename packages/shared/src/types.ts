@@ -25,10 +25,25 @@ export interface Category {
   rev: number;
 }
 
+/** A group of tasks and other projects (DESIGN.md §5). Nests to any depth. */
+export interface Project {
+  id: Id;
+  title: string;
+  /** The project it sits in. Never itself or one of its own descendants. */
+  parentId: Id | null;
+  description: string;
+  status: TaskStatus;
+  createdAt: Ms;
+  updatedAt: Ms;
+  rev: number;
+}
+
 export interface Task {
   id: Id;
   /** May be empty: the first line of the notes stands in until it's named. */
   title: string;
+  /** Missing on tasks saved before projects existed. */
+  projectId?: Id | null;
   groupId: Id | null;
   /** External reference, e.g. a ticket number. */
   ref: string;
@@ -87,6 +102,7 @@ export const DEFAULT_SETTINGS: Settings = { blipSec: 30, resumeGapMin: 10, rev: 
 export interface State {
   groups: Record<Id, Group>;
   categories: Record<Id, Category>;
+  projects: Record<Id, Project>;
   tasks: Record<Id, Task>;
   sessions: Record<Id, Session>;
   /** Missing in states cached before settings existed; read it with settingsOf(). */
@@ -94,7 +110,7 @@ export interface State {
 }
 
 export function emptyState(): State {
-  return { groups: {}, categories: {}, tasks: {}, sessions: {}, settings: { ...DEFAULT_SETTINGS } };
+  return { groups: {}, categories: {}, projects: {}, tasks: {}, sessions: {}, settings: { ...DEFAULT_SETTINGS } };
 }
 
 export function settingsOf(state: State): Settings {
@@ -105,6 +121,7 @@ export function settingsOf(state: State): Settings {
 export interface Changes {
   groups: Group[];
   categories: Category[];
+  projects: Project[];
   tasks: Task[];
   sessions: Session[];
   /** Present only when the settings changed. */

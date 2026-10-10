@@ -6,12 +6,16 @@ import {
   newId,
   openSessions,
   overlapMs,
+  projectPath,
+  projectTree,
   sessionsByTask,
   settingsOf,
   startOfDay,
   ticketNumber,
   type Group,
   type Id,
+  type Project,
+  type ProjectPatch,
   type Session,
   type SessionPatch,
   type Settings,
@@ -31,6 +35,9 @@ export interface TaskInfo {
   title: string;
   titleDerived: boolean;
   group: Group | undefined;
+  project: Project | undefined;
+  /** The project and the ones it sits in, "Acme › Firewall"; "" for none. */
+  projectPath: string;
   lastTouched: number;
   inbox: boolean;
   /** Lowercased text searched by the switcher. */
@@ -47,8 +54,19 @@ export interface Model extends Snapshot {
   paused: TaskInfo[];
   groups: Group[];
   categories: { id: Id; name: string }[];
+  /** Projects that aren't archived, in tree order. */
+  projects: ProjectInfo[];
   settings: Settings;
 }
+
+export interface ProjectInfo {
+  project: Project;
+  depth: number;
+  /** "Acme › Firewall". */
+  path: string;
+}
+
+export const pathText = (projects: Project[]) => projects.map((p) => p.title || "Untitled").join(" › ");
 
 // Task ids in the order they were started on this device, most recent first.
 // Decides which running card is on top (and so which notes field gets focus).
@@ -67,15 +85,19 @@ function derive(snap: Snapshot): Model {
     const sessions = byTask.get(task.id) ?? [];
     const { text, derived } = displayTitle(task, sessions);
     const group = task.groupId ? v.groups[task.groupId] : undefined;
+    const path = projectPath(v, task.projectId);
+    const projectText = pathText(path);
     tasks.set(task.id, {
       task,
       sessions,
       title: text,
       titleDerived: derived,
       group,
+      project: path[path.length - 1],
+      projectPath: projectText,
       lastTouched: lastTouchedAt(task, sessions),
       inbox: isInbox(task, sessions),
-      haystack: [text, task.title, group?.name, task.ref, task.description, ...sessions.map((s) => s.notes)]
+      haystack: [text, task.title, group?.name, projectText, task.ref, task.description, ...sessions.map((s) => s.notes)]
         .filter(Boolean)
         .join("\n")
         .toLowerCase(),
@@ -105,6 +127,11 @@ function derive(snap: Snapshot): Model {
     categories: Object.values(v.categories)
       .filter((c) => !c.archived)
       .sort((a, b) => a.position - b.position),
+    projects: projectTree(Object.values(v.projects).filter((p) => p.status !== "archived")).map(({ project, depth }) => ({
+      project,
+      depth,
+      path: pathText(projectPath(v, project.id)),
+    })),
     settings: settingsOf(v),
   };
 }
@@ -139,14 +166,14 @@ export function useNow(ms = 1000): number {
 
 export interface Actions {
   /** ▶ New. `alongside` keeps whatever is running going. Returns the new session id. */
-  startNew(title?: string, groupId?: Id | null, alongside?: boolean): Id | undefined;
+  startNew(title?: string, groupId?: Id | null, alongside?: boolean, projectId?: Id | null): Id | undefined;
   /** ▶ on an existing task. */
   continueTask(taskId: Id, alongside?: boolean): void;
   /** Stop the clock but keep the task on the Now stack; everything running if none given. */
   pause(sessionId?: Id): void;
   /** Stop a task (its running session, if any) and take it off the Now stack; everything if none given. */
   stop(target?: { sessionId?: Id; taskId?: Id }): void;
-  addInbox(title: string, groupId: Id | null): void;
+  addInbox(title: string, groupId: Id | null, projectId?: Id | null): void;
   updateTask(taskId: Id, patch: TaskPatch): void;
   /** Fetch the CW ticket behind the task's ref and record it. Resolves to an error message, or null. */
   lookupTicket(taskId: Id): Promise<string | null>;
@@ -157,6 +184,8 @@ export interface Actions {
   /** Delete a session, with an Undo toast. */
   deleteSession(sessionId: Id): void;
   createGroup(name: string): Id;
+  createProject(title: string, parentId: Id | null): Id;
+  updateProject(projectId: Id, patch: ProjectPatch): void;
   updateSettings(patch: { blipSec?: number; resumeGapMin?: number }): void;
   /** The top running card's notes field. */
   notesRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -178,7 +207,7 @@ export function useActionsFactory(): Actions {
     };
     return {
       notesRef,
-      startNew(title = "", groupId = null, alongside = false) {
+      startNew(title = "", groupId = null, alongside = false, projectId = null) {
         const taskId = newId();
         const sessionId = newId();
         activate(taskId);
@@ -187,7 +216,7 @@ export function useActionsFactory(): Actions {
           type: "task.start",
           taskId,
           sessionId,
-          newTask: { title, groupId },
+          newTask: { title, groupId, projectId },
           mode: alongside ? "alongside" : "switch",
         });
         return sessionId;
@@ -203,8 +232,8 @@ export function useActionsFactory(): Actions {
       stop(target) {
         sync.dispatch({ type: "timer.stop", ...target });
       },
-      addInbox(title, groupId) {
-        sync.dispatch({ type: "task.create", taskId: newId(), title, groupId });
+      addInbox(title, groupId, projectId = null) {
+        sync.dispatch({ type: "task.create", taskId: newId(), title, groupId, projectId });
       },
       updateTask(taskId, patch) {
         sync.dispatch({ type: "task.update", taskId, patch }, 600);
@@ -259,6 +288,14 @@ export function useActionsFactory(): Actions {
         const groupId = newId();
         sync.dispatch({ type: "group.create", groupId, name: name.trim() });
         return groupId;
+      },
+      createProject(title, parentId) {
+        const projectId = newId();
+        sync.dispatch({ type: "project.create", projectId, title: title.trim(), parentId });
+        return projectId;
+      },
+      updateProject(projectId, patch) {
+        sync.dispatch({ type: "project.update", projectId, patch }, 600);
       },
       updateSettings(patch) {
         sync.dispatch({ type: "settings.update", patch });

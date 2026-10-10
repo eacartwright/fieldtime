@@ -8,7 +8,13 @@ under Status in [CLAUDE.md](../CLAUDE.md).
 
 ## Inbox
 
-*(empty)*
+- **Billing default per work type (M5 step 3 / M6).** Each work type carries a default
+  Billing value (Billable / Non-billable / No Charge); a new session's Billing comes from its
+  work type. Travel is always Non-billable. CW does this today but unreliably. **Waiting on
+  Evan** for the value of each work type; the profile JSON will hold them until M6 syncs work
+  types from CW.
+- **Edit the profile in the app (later).** Fields, lists and the entry format from Settings,
+  instead of editing the profile JSON in the repo.
 
 Items marked **(?)** need a word from Evan on what was meant before building.
 

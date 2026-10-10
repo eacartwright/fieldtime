@@ -44,7 +44,7 @@ export function Switcher({ alongside = false, onClose }: { alongside?: boolean; 
         className="search"
         autoFocus
         value={q}
-        placeholder="Search tasks, clients, notes… or type a new task"
+        placeholder="Search tasks, projects, clients, notes… or type a new task"
         aria-label="Search tasks"
         onChange={(e) => {
           setQ(e.target.value);
@@ -92,6 +92,7 @@ export function Switcher({ alongside = false, onClose }: { alongside?: boolean; 
 function ResultRow({ info, now, running }: { info: TaskInfo; now: number; running: boolean }) {
   const { total } = taskTotals(info, now);
   const meta = [
+    info.projectPath,
     info.group?.name,
     info.task.ref && `#${info.task.ref.trim().replace(/^#+/, "")}`,
     info.inbox ? "inbox" : whenLabel(info.lastTouched, now),

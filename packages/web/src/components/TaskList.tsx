@@ -2,10 +2,11 @@ import { startOfDay, type Id } from "@fieldtime/shared";
 import { useState } from "react";
 import { hm, whenLabel } from "../format";
 import { taskTotals, useA, useM, useNow, type TaskInfo } from "../model";
+import { ProjectList } from "./ProjectList";
 
-type View = "recent" | "today" | "inbox" | "done";
+export type View = "recent" | "today" | "inbox" | "done" | "projects";
 
-export function TaskList({ onOpen }: { onOpen: (id: Id) => void }) {
+export function TaskList({ onOpen, onOpenProject }: { onOpen: (id: Id) => void; onOpenProject: (id: Id) => void }) {
   const m = useM();
   const now = useNow(30_000);
   const [view, setView] = useState<View>("recent");
@@ -22,6 +23,8 @@ export function TaskList({ onOpen }: { onOpen: (id: Id) => void }) {
         return t.inbox;
       case "done":
         return t.task.status === "done";
+      case "projects":
+        return false;
     }
   };
   const base = m.recent.filter(inView);
@@ -39,7 +42,7 @@ export function TaskList({ onOpen }: { onOpen: (id: Id) => void }) {
   return (
     <section className="list" aria-label="Tasks">
       <div className="tabs" role="tablist">
-        {(["recent", "today", "inbox", "done"] as View[]).map((v) => (
+        {(["recent", "today", "inbox", "done", "projects"] as View[]).map((v) => (
           <button
             key={v}
             role="tab"
@@ -52,6 +55,8 @@ export function TaskList({ onOpen }: { onOpen: (id: Id) => void }) {
           </button>
         ))}
       </div>
+
+      {view === "projects" && <ProjectList onOpenProject={onOpenProject} />}
 
       {groupsInView.length > 0 && (
         <div className="chips" aria-label={`Filter by ${m.config.groupLabel.toLowerCase()}`}>
@@ -77,7 +82,7 @@ export function TaskList({ onOpen }: { onOpen: (id: Id) => void }) {
           <TaskRow key={t.task.id} info={t} now={now} view={view} onOpen={onOpen} />
         ))}
       </ul>
-      {list.length === 0 && <p className="empty">{EMPTY[view]}</p>}
+      {list.length === 0 && view !== "projects" && <p className="empty">{EMPTY[view]}</p>}
     </section>
   );
 }
@@ -87,15 +92,30 @@ const EMPTY: Record<View, string> = {
   today: "No time tracked today.",
   inbox: "Inbox is empty. Use + Inbox to capture work for later.",
   done: "No finished tasks.",
+  projects: "",
 };
 
-function TaskRow({ info, now, view, onOpen }: { info: TaskInfo; now: number; view: View; onOpen: (id: Id) => void }) {
+export function TaskRow({
+  info,
+  now,
+  view,
+  onOpen,
+  showProject = true,
+}: {
+  info: TaskInfo;
+  now: number;
+  view: View;
+  onOpen: (id: Id) => void;
+  /** Off on a project's own page, where it would only repeat the page. */
+  showProject?: boolean;
+}) {
   const m = useM();
   const a = useA();
   const running = m.running.find((s) => s.taskId === info.task.id);
   const { today, total } = taskTotals(info, now);
   const meta = [
     !running && info.task.pausedAt && "Paused",
+    showProject && info.projectPath,
     info.group?.name,
     info.task.ref && `#${info.task.ref.trim().replace(/^#+/, "")}`,
     view === "inbox" ? `added ${whenLabel(info.task.createdAt, now)}` : whenLabel(info.lastTouched, now),

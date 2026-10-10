@@ -21,13 +21,14 @@ import { settingsOf, type Changes, type Id, type Ms, type Session, type State } 
 export interface Touched {
   groups: Set<Id>;
   categories: Set<Id>;
+  projects: Set<Id>;
   tasks: Set<Id>;
   sessions: Set<Id>;
   settings: boolean;
 }
 
 export function newTouched(): Touched {
-  return { groups: new Set(), categories: new Set(), tasks: new Set(), sessions: new Set(), settings: false };
+  return { groups: new Set(), categories: new Set(), projects: new Set(), tasks: new Set(), sessions: new Set(), settings: false };
 }
 
 export function collectChanges(state: State, t: Touched): Changes {
@@ -36,6 +37,7 @@ export function collectChanges(state: State, t: Touched): Changes {
   return {
     groups: pick(state.groups, t.groups),
     categories: pick(state.categories, t.categories),
+    projects: pick(state.projects, t.projects),
     tasks: pick(state.tasks, t.tasks),
     sessions: pick(state.sessions, t.sessions),
     settings: t.settings ? settingsOf(state) : null,
@@ -78,6 +80,21 @@ function inheritedCategory(state: State, taskId: Id, before: Ms): Id | null {
   return best?.categoryId ?? null;
 }
 
+/** The project id if that project exists, otherwise null (no project). */
+function knownProject(state: State, id: Id | null | undefined): Id | null {
+  return id && state.projects[id] ? id : null;
+}
+
+/** Whether `parentId` may hold `projectId`: it exists and isn't the project or one of its descendants. */
+function canNest(state: State, projectId: Id, parentId: Id | null): boolean {
+  const seen = new Set<Id>();
+  for (let p = parentId; p !== null; p = state.projects[p]!.parentId) {
+    if (p === projectId || seen.has(p) || !state.projects[p]) return false;
+    seen.add(p);
+  }
+  return true;
+}
+
 function setPaused(state: State, taskId: Id, pausedAt: Ms | null, at: Ms, t: Touched) {
   const task = state.tasks[taskId];
   if (!task || (task.pausedAt ?? null) === pausedAt) return;
@@ -110,6 +127,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         task = {
           id: op.taskId,
           title: op.newTask.title,
+          projectId: knownProject(state, op.newTask.projectId),
           groupId: op.newTask.groupId,
           ref: "",
           description: "",
@@ -208,6 +226,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       state.tasks[op.taskId] = {
         id: op.taskId,
         title: op.title,
+        projectId: knownProject(state, op.projectId),
         groupId: op.groupId,
         ref: "",
         description: "",
@@ -225,7 +244,9 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       if (!task) break;
       // Ticket info describes the old ref, so it goes when the ref changes.
       if (op.patch.ref !== undefined && ticketNumber(op.patch.ref) !== ticketNumber(task.ref)) task.refInfo = null;
-      Object.assign(task, op.patch, { updatedAt: at });
+      const patch = { ...op.patch };
+      if (patch.projectId !== undefined) patch.projectId = knownProject(state, patch.projectId);
+      Object.assign(task, patch, { updatedAt: at });
       t.tasks.add(task.id);
       // Finishing or archiving a task stops its clock and takes it off the Now stack.
       if (op.patch.status && op.patch.status !== "open") {
@@ -348,6 +369,32 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       if (!g) break;
       Object.assign(g, op.patch, { updatedAt: at });
       t.groups.add(g.id);
+      break;
+    }
+
+    case "project.create": {
+      if (state.projects[op.projectId]) break;
+      state.projects[op.projectId] = {
+        id: op.projectId,
+        title: op.title,
+        parentId: knownProject(state, op.parentId),
+        description: "",
+        status: "open",
+        createdAt: at,
+        updatedAt: at,
+        rev: 0,
+      };
+      t.projects.add(op.projectId);
+      break;
+    }
+
+    case "project.update": {
+      const p = state.projects[op.projectId];
+      if (!p) break;
+      const patch = { ...op.patch };
+      if (patch.parentId !== undefined && !canNest(state, p.id, patch.parentId)) delete patch.parentId;
+      Object.assign(p, patch, { updatedAt: at });
+      t.projects.add(p.id);
       break;
     }
 

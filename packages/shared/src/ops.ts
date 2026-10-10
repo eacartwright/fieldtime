@@ -1,4 +1,4 @@
-import type { Id, Ms, RefInfo, Session, Settings, Task } from "./types";
+import type { Id, Ms, Project, RefInfo, Session, Settings, Task } from "./types";
 
 // Every change to the data is an op. Clients apply ops locally right away and
 // queue them for the server, which applies the same ops with the same reducer.
@@ -15,7 +15,7 @@ export type Op =
       type: "task.start";
       taskId: Id;
       sessionId: Id;
-      newTask?: { title: string; groupId: Id | null };
+      newTask?: { title: string; groupId: Id | null; projectId?: Id | null };
       mode?: StartMode;
     }
   /**
@@ -26,7 +26,7 @@ export type Op =
   /** Stop the clock on a session but keep its task on the Now stack; everything running if no sessionId. */
   | { type: "timer.pause"; sessionId?: Id }
   /** Create a task without starting it (Inbox). */
-  | { type: "task.create"; taskId: Id; title: string; groupId: Id | null }
+  | { type: "task.create"; taskId: Id; title: string; groupId: Id | null; projectId?: Id | null }
   | { type: "task.update"; taskId: Id; patch: TaskPatch }
   /**
    * The result of looking up the task's ref (a CW ticket). Ignored if the ref has changed since.
@@ -50,9 +50,13 @@ export type Op =
   | { type: "session.merge"; sessionIds: Id[] }
   | { type: "group.create"; groupId: Id; name: string }
   | { type: "group.update"; groupId: Id; patch: { name?: string; archived?: boolean } }
+  | { type: "project.create"; projectId: Id; title: string; parentId: Id | null }
+  /** A parent that would put the project inside itself (or doesn't exist) is ignored. */
+  | { type: "project.update"; projectId: Id; patch: ProjectPatch }
   | { type: "settings.update"; patch: Partial<Pick<Settings, "blipSec" | "resumeGapMin">> };
 
-export type TaskPatch = Partial<Pick<Task, "title" | "groupId" | "ref" | "description" | "status">>;
+export type TaskPatch = Partial<Pick<Task, "title" | "projectId" | "groupId" | "ref" | "description" | "status">>;
+export type ProjectPatch = Partial<Pick<Project, "title" | "parentId" | "description" | "status">>;
 export type SessionPatch = Partial<Pick<Session, "notes" | "categoryId" | "start" | "end" | "deductMin" | "enteredAt">>;
 
 export const OP_TYPES: ReadonlySet<Op["type"]> = new Set([
@@ -68,6 +72,8 @@ export const OP_TYPES: ReadonlySet<Op["type"]> = new Set([
   "session.merge",
   "group.create",
   "group.update",
+  "project.create",
+  "project.update",
   "settings.update",
 ]);
 

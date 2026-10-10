@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Entries } from "./components/Entries";
 import { InboxAdd } from "./components/InboxAdd";
 import { NowPanel } from "./components/NowPanel";
+import { ProjectDetail } from "./components/ProjectDetail";
 import { SettingsDialog } from "./components/Settings";
 import { Switcher } from "./components/Switcher";
 import { TaskDetail } from "./components/TaskDetail";
@@ -15,7 +16,9 @@ type Overlay =
   | { kind: "inbox" }
   | { kind: "entries" }
   | { kind: "settings" }
-  | { kind: "detail"; taskId: Id }
+  | { kind: "project"; projectId: Id }
+  /** `back`: where closing returns to (the project page it was opened from). */
+  | { kind: "detail"; taskId: Id; back?: Overlay }
   | null;
 
 const isTyping = (el: EventTarget | null) =>
@@ -108,7 +111,10 @@ export function App() {
             onAlongside={() => setOverlay({ kind: "switcher", alongside: true })}
             onOpen={(taskId) => setOverlay({ kind: "detail", taskId })}
           />
-          <TaskList onOpen={(taskId) => setOverlay({ kind: "detail", taskId })} />
+          <TaskList
+            onOpen={(taskId) => setOverlay({ kind: "detail", taskId })}
+            onOpenProject={(projectId) => setOverlay({ kind: "project", projectId })}
+          />
         </main>
 
         {overlay?.kind === "switcher" && <Switcher alongside={overlay.alongside} onClose={close} />}
@@ -116,7 +122,18 @@ export function App() {
         {overlay?.kind === "entries" && <Entries onClose={close} />}
         {overlay?.kind === "settings" && <SettingsDialog onClose={close} />}
         <ToastBar />
-        {overlay?.kind === "detail" && <TaskDetail taskId={overlay.taskId} onClose={close} />}
+        {overlay?.kind === "project" && (
+          <ProjectDetail
+            key={overlay.projectId}
+            projectId={overlay.projectId}
+            onOpenProject={(projectId) => setOverlay({ kind: "project", projectId })}
+            onOpenTask={(taskId) => setOverlay({ kind: "detail", taskId, back: overlay })}
+            onClose={close}
+          />
+        )}
+        {overlay?.kind === "detail" && (
+          <TaskDetail taskId={overlay.taskId} onClose={() => setOverlay(overlay.back ?? null)} />
+        )}
       </ActionsContext.Provider>
     </ModelContext.Provider>
   );

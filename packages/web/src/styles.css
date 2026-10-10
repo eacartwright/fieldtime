@@ -179,6 +179,9 @@ select:focus {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .chip-set {
   border-style: solid;
@@ -556,7 +559,8 @@ select:focus {
 }
 .tabs {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   background: var(--surface-2);
   border-radius: var(--radius);
   padding: 4px;
@@ -1201,4 +1205,42 @@ button.copy-field:hover {
   .toast {
     bottom: 24px;
   }
+}
+
+/* ---- projects ---- */
+@media (max-width: 599px) {
+  /* Five tabs on a phone: a little tighter. */
+  .tab {
+    font-size: 0.85rem;
+    padding: 0 2px;
+  }
+}
+.inline-add {
+  flex-wrap: nowrap;
+}
+.inline-add .search {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--tap);
+}
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: -6px;
+}
+.crumbs .btn {
+  min-height: 0;
+  padding: 2px 6px;
+}
+.project-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+.project-section h3 {
+  font-size: 0.95rem;
+  border-bottom: 1.5px solid var(--border);
+  padding-bottom: 4px;
+  margin: 0;
 }

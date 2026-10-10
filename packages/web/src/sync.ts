@@ -34,7 +34,7 @@ export interface Snapshot {
 
 const CACHE_KEY = "fieldtime:cache";
 const PENDING_KEY = "fieldtime:pending";
-const KINDS = ["groups", "categories", "tasks", "sessions"] as const;
+const KINDS = ["groups", "categories", "projects", "tasks", "sessions"] as const;
 
 export class SignedOut extends Error {}
 
@@ -80,7 +80,8 @@ class Sync {
   constructor() {
     const cache = read<{ server: State; rev: number; config: Config }>(CACHE_KEY);
     if (cache) {
-      this.server = cache.server;
+      // A cache from an older version may lack newer kinds (projects): start those empty.
+      this.server = { ...emptyState(), ...cache.server };
       this.rev = cache.rev;
       this.config = cache.config;
       this.loaded = true;
@@ -260,6 +261,8 @@ function sameTarget(a: Op, b: Op): boolean {
     return a.sessionId === b.sessionId && sameKeys(a.patch, b.patch);
   if (a.type === "task.update" && b.type === "task.update")
     return a.taskId === b.taskId && sameKeys(a.patch, b.patch) && !("status" in b.patch);
+  if (a.type === "project.update" && b.type === "project.update")
+    return a.projectId === b.projectId && sameKeys(a.patch, b.patch) && !("status" in b.patch);
   return false;
 }
 

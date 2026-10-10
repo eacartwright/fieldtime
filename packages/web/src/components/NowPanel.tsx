@@ -1,7 +1,7 @@
 import { durationMs, firstLine, type Id, type Session } from "@fieldtime/shared";
 import { clock, dayLabel, hm, timeOfDay } from "../format";
 import { taskTotals, useA, useM, useNow, type TaskInfo } from "../model";
-import { CategorySelect, DraftInput, DraftTextarea, GroupPicker } from "./fields";
+import { CategorySelect, DraftInput, DraftTextarea, GroupPicker, ProjectPicker } from "./fields";
 
 // The top of the app: one card per running task, most recently started on top,
 // then a compact card per paused task. Pausing (or switching away) keeps a task here;
@@ -143,6 +143,7 @@ function RunningHead({ session, info, now }: { session: Session; info: TaskInfo;
         onValue={(title) => a.updateTask(info.task.id, { title })}
       />
       <div className="now-meta">
+        <ProjectPicker value={info.task.projectId ?? null} onChange={(projectId) => a.updateTask(info.task.id, { projectId })} />
         <GroupPicker value={info.task.groupId} onChange={(groupId) => a.updateTask(info.task.id, { groupId })} />
         <CategorySelect value={session.categoryId} onChange={(categoryId) => a.updateSession(session.id, { categoryId })} />
       </div>

@@ -40,7 +40,7 @@ export class Store {
           record.run(env.id, env.at, Date.now(), JSON.stringify(env.op));
         }
         changes = collectChanges(this.state, touched);
-        const all: { rev: number }[] = [...changes.groups, ...changes.categories, ...changes.tasks, ...changes.sessions];
+        const all: { rev: number }[] = [...changes.groups, ...changes.categories, ...changes.projects, ...changes.tasks, ...changes.sessions];
         if (changes.settings) all.push(changes.settings);
         if (all.length) {
           this.rev += 1;
@@ -57,7 +57,7 @@ export class Store {
     }
 
     const c = changes!;
-    if (c.groups.length || c.categories.length || c.tasks.length || c.sessions.length || c.settings) {
+    if (c.groups.length || c.categories.length || c.projects.length || c.tasks.length || c.sessions.length || c.settings) {
       for (const fn of this.listeners) fn(this.rev, c);
     }
     return c;
@@ -67,7 +67,7 @@ export class Store {
   seed(changes: Changes) {
     transaction(this.db, () => {
       this.rev += 1;
-      for (const e of [...changes.groups, ...changes.categories, ...changes.tasks, ...changes.sessions]) e.rev = this.rev;
+      for (const e of [...changes.groups, ...changes.categories, ...changes.projects, ...changes.tasks, ...changes.sessions]) e.rev = this.rev;
       saveChanges(this.db, changes);
       setRev(this.db, this.rev);
     });

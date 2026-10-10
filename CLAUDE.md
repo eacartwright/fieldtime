@@ -116,9 +116,18 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   core **projects** (any depth) and CW items tracked only when chosen. Milestones renumbered:
   M5 Projects & profiles, M6 CW tickets & lists, M7 CW projects, M8 CW write, M9 AI, M10
   scratchpad. The ticket lookup above counts toward M6.
-- Next: **M5 Projects & profiles** (projects, the profile engine, and moving client / work type /
-  ticket # into the CW profile; propose a plan first, it's a migration), then **M1.5 Day
-  calendar** (drag/resize sessions, fill gaps).
+- M5 plan (agreed 2026-10-10), three steps: (1) projects, (2) profile engine + migrating
+  client / work type / ticket # into the CW profile (`fields` blob, `list_items` keeping ids,
+  reducer translates old op shapes still queued on devices; profile = repo JSON chosen by
+  `PROFILE` in `.env`), (3) generic `FieldInput`, `entryFormat`-driven Time entries, Billing
+  field. Work types carry a **billing default** (code ready for it; Evan supplies the values).
+- Done (M5 step 1): **projects** — `Project` (any depth, `parentId`; the reducer refuses
+  cycles and unknown parents), `task.projectId`, ops `project.create` / `project.update`,
+  migration 7. UI: Projects tab (tree) → project page (crumbs, parent picker, subprojects,
+  tasks / inbox / done, ▶ New here, inline add); `ProjectPicker` on the Now card, Task details
+  and + Inbox; project path in rows and switcher search. Task details opened from a project
+  page returns to it.
+- Next: **M5 step 2** (profile engine + migration), then step 3, then **M1.5 Day calendar**.
 
 ## Working with Evan
 

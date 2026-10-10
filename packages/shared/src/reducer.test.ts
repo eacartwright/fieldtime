@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { displayTitle, firstLine, sessionsByTask } from "./derive";
+import { displayTitle, firstLine, projectPath, projectTree, sessionsByTask } from "./derive";
 import type { Op, OpEnvelope, StartMode } from "./ops";
 import { applyOp, openSessions } from "./reducer";
 import { emptyState, type State } from "./types";
@@ -490,5 +490,62 @@ describe("ticket lookup", () => {
     lookup(s, "123", "nope");
     lookup(s, "123", "nope");
     expect(s.tasks.A).toMatchObject({ title: "Printer offline", groupId: null, refInfo: info });
+  });
+});
+
+describe("projects", () => {
+  const project = (s: State, projectId: string, parentId: string | null = null) =>
+    run(s, T0, { type: "project.create", projectId, title: projectId, parentId });
+  const reparent = (s: State, projectId: string, parentId: string | null) =>
+    run(s, T0 + M, { type: "project.update", projectId, patch: { parentId } });
+
+  it("nests to any depth and lists in tree order", () => {
+    const s = emptyState();
+    project(s, "Acme");
+    project(s, "Firewall", "Acme");
+    project(s, "Cutover", "Firewall");
+    project(s, "Beta");
+    expect(projectPath(s, "Cutover").map((p) => p.id)).toEqual(["Acme", "Firewall", "Cutover"]);
+    const tree = projectTree(Object.values(s.projects)).map((x) => `${x.depth}${x.project.id}`);
+    expect(tree).toEqual(["0Acme", "1Firewall", "2Cutover", "0Beta"]);
+  });
+
+  it("never puts a project inside itself or its own descendants", () => {
+    const s = emptyState();
+    project(s, "Acme");
+    project(s, "Firewall", "Acme");
+    reparent(s, "Acme", "Acme");
+    reparent(s, "Acme", "Firewall");
+    expect(s.projects.Acme!.parentId).toBeNull();
+    reparent(s, "Firewall", null);
+    reparent(s, "Acme", "Firewall");
+    expect(s.projects.Acme!.parentId).toBe("Firewall");
+  });
+
+  it("ignores an unknown parent, but still applies the rest of the patch", () => {
+    const s = emptyState();
+    project(s, "Acme");
+    run(s, T0 + M, { type: "project.update", projectId: "Acme", patch: { parentId: "nope", title: "Acme Corp" } });
+    expect(s.projects.Acme).toMatchObject({ parentId: null, title: "Acme Corp" });
+  });
+
+  it("puts tasks in a project when created, started or edited; an unknown project means none", () => {
+    const s = emptyState();
+    project(s, "Acme");
+    run(s, T0, { type: "task.create", taskId: "A", title: "a", groupId: null, projectId: "Acme" });
+    run(s, T0, { type: "task.start", taskId: "B", sessionId: "b1", newTask: { title: "", groupId: null, projectId: "Acme" } });
+    run(s, T0, { type: "task.create", taskId: "C", title: "c", groupId: null });
+    run(s, T0 + M, { type: "task.update", taskId: "C", patch: { projectId: "nope" } });
+    expect([s.tasks.A!.projectId, s.tasks.B!.projectId, s.tasks.C!.projectId]).toEqual(["Acme", "Acme", null]);
+    run(s, T0 + M, { type: "task.update", taskId: "C", patch: { projectId: "Acme" } });
+    expect(s.tasks.C!.projectId).toBe("Acme");
+  });
+
+  it("creating the same project twice is harmless", () => {
+    const s = emptyState();
+    project(s, "Acme");
+    run(s, T0 + M, { type: "project.update", projectId: "Acme", patch: { title: "Renamed" } });
+    project(s, "Acme");
+    expect(s.projects.Acme!.title).toBe("Renamed");
   });
 });

@@ -1,5 +1,5 @@
 import { liveSessions } from "./reducer";
-import type { Id, Ms, Session, State, Task } from "./types";
+import type { Id, Ms, Project, Session, State, Task } from "./types";
 
 // Read-only views over State. Nothing here is stored.
 
@@ -48,6 +48,35 @@ export function displayTitle(task: Task, sessions: Session[] = []): { text: stri
 export function ticketNumber(ref: string): string {
   const n = ref.trim().replace(/^#+/, "").trim();
   return /^\d+$/.test(n) ? n : "";
+}
+
+/** A project and the projects it sits in, outermost first. Empty for no project. */
+export function projectPath(state: State, id: Id | null | undefined): Project[] {
+  const path: Project[] = [];
+  for (let p = id ? state.projects[id] : undefined; p && !path.includes(p); p = p.parentId ? state.projects[p.parentId] : undefined) {
+    path.unshift(p);
+  }
+  return path;
+}
+
+/** Projects in tree order (each followed by its subprojects, by title), with their depth. */
+export function projectTree(projects: Project[]): { project: Project; depth: number }[] {
+  const ids = new Set(projects.map((p) => p.id));
+  const children = new Map<Id | null, Project[]>();
+  for (const p of projects) {
+    // A project whose parent isn't in the list (archived, say) shows at the top level.
+    const parent = p.parentId && ids.has(p.parentId) ? p.parentId : null;
+    children.set(parent, [...(children.get(parent) ?? []), p]);
+  }
+  const out: { project: Project; depth: number }[] = [];
+  const walk = (parent: Id | null, depth: number) => {
+    for (const p of (children.get(parent) ?? []).sort((a, b) => a.title.localeCompare(b.title))) {
+      out.push({ project: p, depth });
+      walk(p.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return out;
 }
 
 /** Recency for sorting: the last time the task was started, or when it was created. */

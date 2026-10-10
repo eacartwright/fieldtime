@@ -21,7 +21,7 @@ const db = openDb(DB_FILE);
 const store = new Store(db);
 const backups = startBackups(db, BACKUP_DIR);
 if (Object.keys(store.state.categories).length === 0) {
-  store.seed({ groups: [], categories: seedCategories(), tasks: [], sessions: [] });
+  store.seed({ groups: [], categories: seedCategories(), projects: [], tasks: [], sessions: [] });
 }
 
 // ConnectWise is optional: without the CW_* settings in .env, ticket lookup is off.
