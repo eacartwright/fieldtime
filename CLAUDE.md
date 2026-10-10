@@ -111,8 +111,14 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   CW once the number settles; `TicketInfo` shows summary · company with ↻. The result is the
   `task.refInfo` op: ignored if the ref changed since, fills the title only if untitled and the
   client only if unset (matched by exact name). Changing the ref clears `refInfo`.
-- Next: M5 client mapping (local client → one CW company, handling CW duplicates) and work types,
-  then **M1.5 Day calendar** (drag/resize sessions, fill gaps).
+- Requested changes and ideas: [docs/backlog.md](docs/backlog.md) (Inbox, then Next / Soon / Later).
+- 2026-10-10: design reworked into **core / profile / integration** (DESIGN.md §4, §10) with
+  core **projects** (any depth) and CW items tracked only when chosen. Milestones renumbered:
+  M5 Projects & profiles, M6 CW tickets & lists, M7 CW projects, M8 CW write, M9 AI, M10
+  scratchpad. The ticket lookup above counts toward M6.
+- Next: **M5 Projects & profiles** (projects, the profile engine, and moving client / work type /
+  ticket # into the CW profile; propose a plan first, it's a migration), then **M1.5 Day
+  calendar** (drag/resize sessions, fill gaps).
 
 ## Working with Evan
 

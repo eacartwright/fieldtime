@@ -1,6 +1,6 @@
 # fieldtime — Design
 
-*v1.0 · 2026-09-27 · living document, edit freely*
+*v1.1 · 2026-10-10 · living document, edit freely*
 
 ## 1. Purpose
 
@@ -15,9 +15,19 @@ serves two goals:
 Everything else is secondary. The app is also the **inbox** for work I haven't started yet, and
 (later) a quick **scratchpad** per client.
 
+Longer term it's a **whole work-task system**: keeping track of tasks and projects, scheduling
+them, not losing any, and tracking the time spent on them. It's task-oriented, not
+ticket-oriented, and not specific to MSPs.
+
 The core is **job-agnostic and deliberately basic**. Everything specific to the current job,
-such as ConnectWise, work types and billable flags, is layered on top as an **integration** (§4). The next job gets the
-same core with a different integration, or none at all.
+such as tickets, clients, work types and billing, is layered on top as a **profile** (the fields)
+and an **integration** (the ConnectWise API) (§4). The next job gets the same core with a
+different profile and integration, or none at all.
+
+**It works beside the company's tools, not instead of them.** I'll always have to work directly
+in many apps (the PSA, RMM, email, chat). This is my own place for keeping track of all of it,
+for me personally: my own show beside the company's main one. Hence the planned name,
+**sideshow** (backlog: rename).
 
 fieldtime is where work **starts**. Creating a ticket or finding the right one in another system
 must never be a prerequisite for recording work.
@@ -45,8 +55,9 @@ ticket up front, then re-typing times and running notes through AI by hand after
    tasks can run at once (work is organic, and CW allows overlapping entries).
 5. **The data outlives any service.** I host it myself, it's a plain file I can back up, and no
    vendor can pause or delete it.
-6. **The core stays generic, and integrations are optional.** Remove the CW integration and the
-   app still fully works.
+6. **The core stays generic, and profiles and integrations are optional.** Remove the CW
+   integration and the app still fully works; remove the profile too and it's still a complete
+   task and time tracker.
 
 ## 3. Non-goals
 
@@ -57,40 +68,86 @@ ticket up front, then re-typing times and running notes through AI by hand after
 - Full project management: no subtasks, dependencies or Gantt charts.
 - Billing-grade rounding. Employers apply their own afterwards.
 
-## 4. Layers: core vs. integration
+## 4. Layers: core, profile, integration
 
-| | **Core** (any job) | **ConnectWise integration** (this job) |
-|---|---|---|
-| Things I work on | Task | + ticket ref, lookup, push |
-| Stints of work | Session: start, end, deduct, notes | + billable, pushed-entry ID |
-| Grouping | **Group**: optional, one per task | Shown as **Client**, mapped to a CW Company |
-| Kind of work | **Category**: optional small list | Shown as **Work Type**, synced from CW, carries billable default |
-| Not started yet | Inbox | — |
-| Scratchpad (later) | One markdown scratchpad per Group | — |
-| Output | Day report, plain-text/CSV export, AI cleanup | + "Copy for CW" format, push time entries |
+| | **Core** (code, always on) | **Profile** (data, one JSON file) | **Integration** (code, optional) |
+|---|---|---|---|
+| What it is | The app itself, for any job | The fields a job needs | A connection to an external system |
+| Examples | Projects, tasks, sessions, notes, inbox, schedule, Now stack, day report, entry sheet, export | Client, Ticket #, Assigned to, Work Type, Billing (Billable / Non-billable / No Charge) | CW: search and track tickets/projects, ticket lookup, list sync, push time entries |
+| Without it | — | Plain task and time tracker | Profile fields filled in by hand; copy-to-clipboard still works |
 
-How it works:
+**The core** is complete on its own: projects (§5), tasks, sessions with start, end, deduct and
+notes, the inbox, scheduling, the day report, the Time entries sheet with click-to-copy, and
+plain-text/CSV export. It has no idea what a ticket, client, work type or billable flag is.
+Nothing switches core features on or off.
 
-- The core has two optional, generic organizing fields: **Group** and **Category**. Each has a
-  **display label** that is configurable. With CW enabled they read "Client" and "Work Type". A
-  different job might call them "Project" and "Activity", or hide Category entirely.
-- An integration can **rename** those labels, **supply** their lists (synced from the external
-  system), **add fields** of its own (billable, charge-to type…) and **add actions** (look up,
-  push). Integration-specific fields live in a per-record JSON blob owned by the integration, so
-  the core schema never changes when an integration changes.
-- A "no integration" install is the baseline: tasks, sessions, inbox, day report, export.
-- **Billable is not in the core.** It belongs to the CW integration. If it's ever needed
-  elsewhere, a "Freelance" template/integration can add it the same way.
+**A profile** declares the extra fields a job needs, and only those. **A field the profile
+doesn't list doesn't exist** (an inclusion list, not a list of on/off flags). One profile is
+active at a time. A profile is just data, so a job with no API access still gets its fields and
+its entry format without writing code.
+
+```json
+{
+  "name": "Veritaz / ConnectWise",
+  "fields": [
+    { "key": "client",   "label": "Client",      "on": "task",    "type": "list", "list": "clients", "groupBy": true },
+    { "key": "ticket",   "label": "Ticket #",    "on": "task",    "type": "text" },
+    { "key": "assignee", "label": "Assigned to", "on": "task",    "type": "text" },
+    { "key": "workType", "label": "Work Type",   "on": "session", "type": "list", "list": "workTypes" },
+    { "key": "billing",  "label": "Billing",     "on": "session", "type": "choice",
+      "options": ["Billable", "Non-billable", "No Charge"], "defaultFrom": "workType" }
+  ],
+  "lists": { "workTypes": ["Remote - Business Hours", "Onsite - Business Hours", "…"] },
+  "entryFormat": { "date": "MM/DD/YYYY", "time": "h:mm A", "hours": "decimal",
+                   "fields": ["date", "start", "end", "hours", "workType", "billing", "notes", "ticket"] }
+}
+```
+
+- **Field types** (kept small): `text`, `choice` (fixed options), `list` (a managed list that can
+  be edited in the app and synced by an integration), `bool`.
+- **Where values live**: a per-record `fields` JSON blob keyed by `key`, on tasks and sessions.
+  The core schema never changes when a profile changes.
+- **Switching profiles keeps data.** Values stay in the blob, hidden, and reappear if the
+  profile comes back (principle 5). List items are never deleted by a sync, only archived, so
+  past sessions never point at nothing.
+- **`groupBy`** gives a `list` field its own sidebar view and a page per value (the Client page,
+  §5). Another job might group by department, or not at all.
+- **`defaultFrom`** fills a field from the chosen item of another list (a work type carries its
+  billing default).
+- **`entryFormat`** drives the Time entries sheet: which fields are shown and copied, and how
+  dates, times and hours are written. Every PSA asks for roughly the same things.
+
+**An integration** connects profile fields and core records to an external system (§10). It
+maps the external system's entities onto the core's, syncs `list` fields, offers external
+**search sources**, and adds actions (look up, track, push). Records it touches carry a generic
+link, `{integration, externalId}`; the core never stores anything else about the external system.
 
 *Rest of this document uses the current job's labels (Client, Work Type) for readability.*
 
 ## 5. Core concepts
 
 ```
-Group (Client) ─┬─< Task ─< Session
-                └── Scratchpad (later)
-Category (Work Type): small list
+Project ─┬─< Project (any depth)
+         └─< Task ─< Session
+
+Profile fields (fields blob)   Client, Ticket #, Assigned to   on tasks
+                               Work Type, Billing              on sessions
 ```
+
+### Project
+A group of tasks and other projects that belong together. Optional: a task needn't be in one.
+
+| Field | Notes |
+|---|---|
+| `title` | Required. |
+| `parentId` | The project it sits in, or none. **Any depth** in the data; the UI shows one level until more is needed. |
+| `description` | Optional context. |
+| `status` | `open` · `done` · `archived`. |
+
+A project is whatever I want to group: a handful of loose tasks, or several CW projects under one
+heading ("Acme network refresh" holding loose tasks plus the CW project "Acme – Firewall
+Replacement"). An integration can **link** a project to an external one (§10); it's still an
+ordinary project, and every view, timer and report treats it the same.
 
 ### Three kinds of notes (keep them distinct)
 
@@ -101,13 +158,14 @@ Category (Work Type): small list
 | **Client scratchpad** | Client | Quick jottings that aren't tasks *yet*. Turned into tasks afterwards. (Later milestone.) | "FD1 printer not working. Wifi slow." |
 
 ### Task
-A piece of work. At this job, it's usually a CW ticket or project ticket.
+A piece of work. At this job it's often a CW ticket or project ticket, but the core only knows
+it as a task.
 
 | Field | Notes |
 |---|---|
 | `title` | Optional at start. If blank, the first line of the first session's notes is shown, or "Untitled · 10:42". |
-| `group` | Client. Optional at creation. |
-| `ref` | External reference, e.g. CW ticket #. Plain text until an integration understands it. |
+| `projectId` | The project it belongs to, or none. |
+| `fields` | Profile field values (Client, Ticket #, Assigned to…). |
 | `location` | Free text. Tapping it opens Maps. |
 | `links[]` | URLs (docs, RMM, vendor portals, ticket URL…). |
 | `doDate` / `dueDate` | When I intend to work on it / when it must be done. |
@@ -120,11 +178,11 @@ of work, start the same task again.
 ### Inbox
 **Open tasks that have never been started.** This is the catch-all for "client tacked on two
 new issues while I'm on site" or "remember to follow up with X." Capture them with **New for
-later**, optionally under a client. Starting one moves it out of the inbox.
+later**, optionally under a project or client. Starting one moves it out of the inbox.
 
 ### Session
-One stint of work on a task, from start to stop. **At this job, one session = one CW time entry**
-(CW entries carry their own start and end time).
+One stint of work on a task, from start to stop. **One session = one time entry** in whatever
+system takes them (at this job, CW entries carry their own start and end time).
 
 | Field | Notes |
 |---|---|
@@ -132,12 +190,13 @@ One stint of work on a task, from start to stop. **At this job, one session = on
 | `end` | `null` while running. Editable. |
 | `deduct` | Optional minutes subtracted (e.g. lunch), mainly for after-the-fact sessions. |
 | `notes` | Stream-of-consciousness notes. Dictation works here. |
-| `category` | Work Type. Inherits from the task's previous session. |
+| `fields` | Profile field values (Work Type, Billing…). Inherited from the task's previous session. |
+| `enteredAt` | When it was marked as entered into the external system (core: "exported"). |
 
 Derived: **duration** = end − start − deduct.
 
 - **Continuation rule**: a session with empty notes exports as *"Continuation of previous work"*
-  and inherits the previous session's category.
+  and inherits the previous session's field values.
 - **Midnight rule**: a session crossing midnight is split at 00:00, so every session belongs to
   exactly one day.
 - **Manual sessions**: add a session after the fact without having run a timer.
@@ -164,13 +223,19 @@ Until then, the Inbox covers the same need: quickly add unstarted tasks under th
 
 The **Client page** shows everything for that client in one place: open tasks, inbox items,
 recent sessions (and later the scratchpad). This is the screen for "I'm at XYZ, open the app,
-select XYZ."
+select XYZ." In general terms it's the page for one value of a profile's `groupBy` field (§4);
+with no such field there's no Client page. The scratchpad may hang off a project instead, or as
+well; decide at M10.
 
-### Category list (current job, seeded locally until CW sync)
+### Work type list (CW profile)
+
+Synced from CW at M6; until then, seeded from the profile:
 
 Remote - Business Hours · Onsite - Business Hours · In-house - Business Hours · Office ·
 Internal Meeting · Internal Technical · Communications · Project Coordination ·
 SALES - Quoting · Travel - To Client · Travel - From Client · Training - Providing
+
+With no profile, sessions have no work type at all.
 
 ## 6. The one invariant
 
@@ -240,10 +305,26 @@ pressing ▶ New.
    every device shows the same stack. On desktop this becomes a small always-on-top window. On the phone it's
    the top of the main screen.
 2. **Switcher** (above).
-3. **Inbox**: unstarted tasks, by client.
-4. **Clients**: list → Client page (tasks, inbox, recent sessions).
-5. **Task detail**: title, client, ref, description, and sessions grouped by day with daily
-   subtotals and each session's notes.
+3. **Inbox**: unstarted tasks, by client (or by project).
+4. **Sidebar** (planned): browsing views, for finding things more easily than a global search.
+   The core supplies some, the profile and integration add more:
+
+   ```
+   Now
+   Inbox
+   Schedule        (later)
+   Projects        ← core: the project tree; CW-linked ones marked
+   Tasks           ← core
+   ─────────
+   Clients         ← profile: a groupBy field → Client page
+   CW Tickets      ← integration: tracked tickets + live CW search
+   CW Projects     ← integration: tracked projects + live CW search
+   ```
+
+   The core views get an extra "From ConnectWise" search source when CW is on (§10); they
+   aren't replaced by CW versions.
+5. **Task detail**: title, project, profile fields (client, ticket #…), description, and
+   sessions grouped by day with daily subtotals and each session's notes.
 6. **Day report**: the screen used when entering time. For a date (or a week), each task with
    its sessions and a per-task total for that day. Each session is one line and becomes one CW
    time entry:
@@ -386,29 +467,61 @@ global hotkeys and a tray icon. A browser tab also works as a fallback.
 
 ## 10. Integrations
 
-Interface: each integration implements whichever parts make sense.
+An integration goes with a profile (§4): the profile says which fields exist, the integration
+connects them and the core records to an external system. Each integration implements
+whichever parts make sense.
 
 | Capability | Meaning | CW example |
 |---|---|---|
-| `labels` | Rename Group / Category | "Client", "Work Type" |
-| `groups` | Search/list external groups to map local ones to | Companies (active client types only) |
-| `categories` | Supply the category list | CW work types (+ billable default) |
-| `fields` | Extra fields on tasks/sessions | billable, charge-to type |
-| `lookupRef` | Given a `ref`, return title + group | Ticket # → summary + company |
+| `mapping` | Which external entity becomes which core record or field | see the CW table below |
+| `syncList` | Fill a profile `list` field from the external system | Work types (+ billing default); companies → clients |
+| `search` | Live search sources for the sidebar and the switcher | CW tickets, CW projects, companies |
+| `track` | Import a search result as a linked local record | A ticket → task; a project → project + chosen tickets |
+| `lookup` | Refresh a linked record or a typed-in reference | Ticket # → summary, company, closed |
 | `pushSession` | Create an external entry from a session | POST time entry to the ticket |
-| `exportText` | Copy/paste format | "Copy for ConnectWise" |
+| `views` | Extra sidebar views | CW Tickets, CW Projects |
 
 - The core stores only a generic link on each record: `{integration, externalId}`.
 - A pushed session remembers its external ID so it's never pushed twice. Editing it after it's
   been pushed flags it for attention.
+- Copy-to-clipboard isn't an integration capability: the Time entries sheet is core, shaped by
+  the profile's `entryFormat`.
+
+### Tracked vs. findable
+
+Nothing is imported in bulk. The external system stays the place where *everything* is; fieldtime
+holds what I've chosen to work with.
+
+| | Lives where | Example |
+|---|---|---|
+| **Tracked** | Local, synced, works offline | The CW projects I'm active on, and the tickets of theirs I actually use |
+| **Findable** | Stays in the external system, searched live through the server | Every other project, ticket and company |
+
+Search shows local results first, then a **"From ConnectWise"** section. Picking one offers
+**Track**, which imports it as a local record with its link. Once tracked, it's mine: if the
+integration goes away, the project or task stays and only the link goes dead (principle 5).
+
+**Tracking a project** lists its tickets with checkboxes. The profile can preselect tickets by
+name, for the ones a project template always creates and I work out of most (Project
+Coordination, Client Communication, In-house Preparation). Picking the project and jumping into
+its coordination ticket is then two clicks.
 
 ### ConnectWise (first integration)
 
+| CW | Core |
+|---|---|
+| Project | Project (linked) |
+| Service ticket / project ticket | Task (linked, `ticket` field filled) |
+| Company | An item in the `clients` list (linked) |
+| Work type | An item in the `workTypes` list (synced, carries a billing default) |
+| Time entry | Pushed from a session (`billing` → CW's Billable / Do Not Bill / No Charge) |
+
 - **Client mapping**: CW has duplicates (active / lead / former…). Filter to active client types
   and map each local client to one CW company **once**.
-- **Ref workflow**: find the ticket in CW manually, paste its number into the task → fieldtime
-  fetches the summary + company, and from then on **pushes each of that task's sessions as its
-  own time entry on that ticket**.
+- **Ticket # workflow** (works today): find the ticket in CW manually, paste its number into the
+  task → fieldtime fetches the summary + company, and from then on **pushes each of that task's
+  sessions as its own time entry on that ticket**. From M6, searching CW and choosing **Track**
+  replaces the manual search; pasting a number still works.
 - **Creating a ticket from a task** (planned): the **Ticket Owner** defaults to me (probably; not
   final), shown as a chip with an **×**. Removing it leaves the ticket unassigned so it lands on
   the **Tier 1** service board, where the service coordinator assigns a tech. Often I'll want it
@@ -445,10 +558,12 @@ always kept.
 | **M2** | Hands-free capture | Shortcuts endpoints → Back Tap, Control Center, Siri note. |
 | **M3** | Desktop presence | Tauri: always-on-top Now bar, global hotkeys (▶ New, Switcher, Stop), tray. |
 | **M4** | Bad-signal hardening | Airplane-mode test on iPhone, no lost ops, "pending sync" indicator. |
-| **M5** | CW read | Client mapping, work types, ticket lookup by ref. |
-| **M6** | CW write | Push sessions as time entries from the Day report. |
-| **M7** | AI cleanup | Clean-up button with template. |
-| **M8** | Client scratchpad | Markdown scratchpad per client, line → inbox task. |
+| **M5** | Projects & profiles (core) | Projects (any depth) with tasks under them, and a Projects view. The profile engine (§4): field types, the `fields` blob, one active profile, `entryFormat` driving Time entries. Today's client, work type and ticket # move out of core columns into the CW profile (a migration), with no change in what I see. With no profile, the app is a plain task and time tracker. |
+| **M6** | CW tickets & lists | Ticket lookup (done before M5, moves onto the `ticket` field). Live CW ticket search with **Track**. Client mapping (local client → one CW company, coping with duplicates). Work-type sync with billing defaults. |
+| **M7** | CW projects | CW project search, Track with ticket picking and template preselection, the sidebar with CW Tickets / CW Projects views. |
+| **M8** | CW write | Push sessions as time entries (with billing) from Time entries / the Day report. |
+| **M9** | AI cleanup | Clean-up button with template. |
+| **M10** | Scratchpad | Markdown scratchpad per client (or project), line → inbox task. |
 | later | Nice-to-haves | AI-generated task titles from notes (like chat titles), natural-language quick capture, Obsidian mirroring, Google Calendar/Maps, native iOS app. |
 
 ## 13. Open questions
@@ -459,5 +574,13 @@ None blocking M1. Decisions made along the way:
   optional context.
 - ▶ New starts untitled. The first line of the notes stands in as the title until it's named.
 - One session = one CW time entry.
-- Billable is integration-only, not core.
-- Scratchpad is deferred to M8. Inbox tasks cover that need until then.
+- Scratchpad is deferred to M10. Inbox tasks cover that need until then.
+- 2026-10-10, three layers (§4): **core** (task-oriented, not ticket- or MSP-oriented),
+  **profile** (an inclusion list of fields: omitted means absent) and **integration** (API
+  code). Ticket #, client, assignee, work type and billing are all profile fields, not core.
+  Billing has three values at this job: Billable, Non-billable, No Charge (shows on the invoice).
+  There is no charge-to field.
+- 2026-10-10: **one profile at a time**. Switching keeps the values, hidden.
+- 2026-10-10: **projects are core**, nest to any depth, and can hold both my own groupings and
+  linked CW projects. CW items are **tracked** only when I choose; everything else stays
+  **findable** by live search (§10).
