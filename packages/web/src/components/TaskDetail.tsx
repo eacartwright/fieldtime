@@ -1,9 +1,9 @@
 import { durationMs, startOfDay, type Id, type Session } from "@fieldtime/shared";
 import { useState } from "react";
 import { dayLabel, hm, timeOfDay } from "../format";
-import { useA, useM, useNow } from "../model";
+import { sessionFieldTexts, useA, useM, useNow } from "../model";
 import { Dialog } from "./Dialog";
-import { DraftInput, DraftTextarea, GroupPicker, ProjectPicker, TicketInfo } from "./fields";
+import { DraftInput, DraftTextarea, ProjectPicker, TaskFieldInputs, TicketInfo } from "./fields";
 import { defaultManualSpan, SessionEditor } from "./SessionEditor";
 
 // Everything about one task: its fields, and its sessions grouped by day.
@@ -22,7 +22,6 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
   if (!info) return null;
   const { task } = info;
   const running = m.running.find((s) => s.taskId === taskId);
-  const catName = (id: Id | null) => (id ? m.view.categories[id]?.name : undefined);
 
   // Selection is a range over the task's sessions in time order.
   const chrono = info.sessions;
@@ -63,14 +62,7 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
         />
         <div className="row-actions">
           <ProjectPicker value={task.projectId ?? null} onChange={(projectId) => a.updateTask(taskId, { projectId })} />
-          <GroupPicker value={task.groupId} onChange={(groupId) => a.updateTask(taskId, { groupId })} />
-          <DraftInput
-            className="ref-input"
-            value={task.ref}
-            placeholder="Ticket #"
-            aria-label="Ticket or reference"
-            onValue={(ref) => a.updateTask(taskId, { ref })}
-          />
+          <TaskFieldInputs task={task} />
         </div>
         <TicketInfo task={task} />
         <DraftTextarea
@@ -215,7 +207,7 @@ export function TaskDetail({ taskId, onClose }: { taskId: Id; onClose: () => voi
                     >
                       <span className="muted small">
                         {timeOfDay(s.start)}–{s.end ? timeOfDay(s.end) : "now"} · {hm(durationMs(s, now))}
-                        {catName(s.categoryId) && ` · ${catName(s.categoryId)}`}
+                        {sessionFieldTexts(m, s).map((x) => ` · ${x}`)}
                       </span>
                       <span className={`pre ${s.notes ? "" : "muted"}`}>
                         {s.notes || "Continuation of previous work"}

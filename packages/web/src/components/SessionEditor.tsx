@@ -1,7 +1,7 @@
 import { durationMs, startOfDay, type Ms, type Session } from "@fieldtime/shared";
 import { hm } from "../format";
 import { useA, useNow } from "../model";
-import { CategorySelect, DraftTextarea } from "./fields";
+import { DraftTextarea, SessionFieldInputs } from "./fields";
 
 // Edit one session: day, start/end (native time inputs, so the iPhone shows its wheel),
 // deduct, work type, notes; snap to the quarter hour; delete. Used in Task details and
@@ -93,7 +93,7 @@ export function SessionEditor({ session: s, onDone }: { session: Session; onDone
         {hm(durationMs(s, now))} · {(durationMs(s, now) / 3_600_000).toFixed(2)} h
         {s.end !== null && s.end - s.start >= DAY && <span className="warn"> · longer than a day?</span>}
       </div>
-      <CategorySelect value={s.categoryId} onChange={(categoryId) => a.updateSession(s.id, { categoryId })} />
+      <SessionFieldInputs session={s} />
       <DraftTextarea
         className="description"
         value={s.notes}

@@ -1,4 +1,4 @@
-import { projectPath, ticketNumber, type Id, type Task } from "@fieldtime/shared";
+import { projectPath, ticketNumber, type FieldDef, type FieldValue, type Id, type Session, type Task } from "@fieldtime/shared";
 import { useEffect, useRef, useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { useA, useM } from "../model";
 
@@ -159,28 +159,155 @@ function ComboPicker({
   );
 }
 
-/** Pick a client (group), or type a new name to add one. */
-export function GroupPicker({ value, onChange }: { value: Id | null; onChange: (id: Id | null) => void }) {
+/** Pick an item of a long list (clients), or type a new name to add one. */
+function ListPicker({ def, value, onChange }: { def: FieldDef; value: Id | null; onChange: (id: Id | null) => void }) {
   const m = useM();
   const a = useA();
-  const current = value ? m.view.groups[value] : undefined;
-  const label = m.config.groupLabel;
+  const items = [...(m.lists.get(def.list!) ?? [])].sort((x, y) => x.name.localeCompare(y.name));
+  const current = value ? m.view.lists[value] : undefined;
+  const label = def.label.toLowerCase();
   return (
     <ComboPicker
-      chip={current ? current.name : `+ ${label}`}
+      chip={current ? current.name : `+ ${def.label}`}
       set={!!current}
-      placeholder={`Find or add ${label.toLowerCase()}…`}
+      placeholder={`Find or add ${label}…`}
       options={(query, typed) => [
-        ...m.groups
-          .filter((g) => g.name.toLowerCase().includes(query))
+        ...items
+          .filter((x) => x.name.toLowerCase().includes(query))
           .slice(0, 8)
-          .map((g) => ({ key: g.id, text: g.name, pick: () => onChange(g.id) })),
-        ...(query && !m.groups.some((g) => g.name.toLowerCase() === query)
-          ? [{ key: "+", text: `Add “${typed}”`, pick: () => onChange(a.createGroup(typed)) }]
+          .map((x) => ({ key: x.id, text: x.name, pick: () => onChange(x.id) })),
+        ...(query && !items.some((x) => x.name.toLowerCase() === query)
+          ? [{ key: "+", text: `Add “${typed}”`, pick: () => onChange(a.createListItem(def.list!, typed)) }]
           : []),
-        ...(value ? [{ key: "-", text: `No ${label.toLowerCase()}`, pick: () => onChange(null) }] : []),
+        ...(value ? [{ key: "-", text: `No ${label}`, pick: () => onChange(null) }] : []),
       ]}
     />
+  );
+}
+
+/** A dropdown of fixed options (a choice field, or a short list such as work types). */
+function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string | null;
+  options: { value: string; text: string }[];
+  onChange: (v: string | null) => void;
+}) {
+  return (
+    <select
+      className={`select ${value ? "" : "unset"}`}
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value || null)}
+      aria-label={label}
+    >
+      <option value="">{label}…</option>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.text}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/** Edit one profile field, in whatever form its type calls for. */
+export function FieldInput({
+  def,
+  value,
+  onChange,
+  resetKey,
+}: {
+  def: FieldDef;
+  value: FieldValue | undefined;
+  onChange: (v: FieldValue | null) => void;
+  /** Which record it edits, so a text draft resets when that changes. */
+  resetKey?: unknown;
+}) {
+  const m = useM();
+  switch (def.type) {
+    case "list":
+      if (def.input === "search") return <ListPicker def={def} value={value ? String(value) : null} onChange={onChange} />;
+      return (
+        <SelectField
+          label={def.label}
+          value={value ? String(value) : null}
+          options={(m.lists.get(def.list!) ?? []).map((x) => ({ value: x.id, text: x.name }))}
+          onChange={onChange}
+        />
+      );
+    case "choice":
+      return (
+        <SelectField
+          label={def.label}
+          value={value ? String(value) : null}
+          options={(def.options ?? []).map((o) => ({ value: o, text: o }))}
+          onChange={onChange}
+        />
+      );
+    case "bool":
+      return (
+        <button type="button" className={`chip ${value ? "chip-set" : ""}`} aria-pressed={!!value} onClick={() => onChange(!value)}>
+          {value ? "✓ " : ""}
+          {def.label}
+        </button>
+      );
+    case "text":
+      return (
+        <DraftInput
+          className="ref-input"
+          value={value ? String(value) : ""}
+          placeholder={def.label}
+          aria-label={def.label}
+          resetKey={resetKey}
+          onValue={(v) => onChange(v)}
+        />
+      );
+  }
+}
+
+/** All of the profile's task fields for one task. */
+export function TaskFieldInputs({ task }: { task: Task }) {
+  const m = useM();
+  const a = useA();
+  return (
+    <>
+      {m.profile.fields
+        .filter((d) => d.on === "task")
+        .map((d) => (
+          <FieldInput
+            key={d.key}
+            def={d}
+            value={task.fields[d.key]}
+            resetKey={task.id}
+            onChange={(v) => a.setTaskField(task.id, d.key, v)}
+          />
+        ))}
+    </>
+  );
+}
+
+/** All of the profile's session fields for one session. */
+export function SessionFieldInputs({ session }: { session: Session }) {
+  const m = useM();
+  const a = useA();
+  return (
+    <>
+      {m.profile.fields
+        .filter((d) => d.on === "session")
+        .map((d) => (
+          <FieldInput
+            key={d.key}
+            def={d}
+            value={session.fields[d.key]}
+            resetKey={session.id}
+            onChange={(v) => a.setSessionField(session.id, d.key, v)}
+          />
+        ))}
+    </>
   );
 }
 
@@ -228,34 +355,17 @@ export function ProjectPicker({
   );
 }
 
-export function CategorySelect({ value, onChange }: { value: Id | null; onChange: (id: Id | null) => void }) {
-  const m = useM();
-  return (
-    <select
-      className={`select ${value ? "" : "unset"}`}
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value || null)}
-      aria-label={m.config.categoryLabel}
-    >
-      <option value="">{m.config.categoryLabel}…</option>
-      {m.categories.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.name}
-        </option>
-      ))}
-    </select>
-  );
-}
-
 /**
- * The CW ticket behind a task's ref: summary and company, looked up once the number has
- * settled (and again with ↻). Shows nothing without a ticket number or without CW.
+ * The CW ticket behind a task's ticket field: summary and company, looked up once the number
+ * has settled (and again with ↻). Shows nothing without a ticket number or without CW.
  */
 export function TicketInfo({ task }: { task: Task }) {
   const m = useM();
   const a = useA();
-  const n = ticketNumber(task.ref);
-  const info = task.refInfo;
+  const field = m.profile.connectwise?.ticketField;
+  const on = !!m.config.cw && !!field;
+  const n = field ? ticketNumber(String(task.fields[field] ?? "")) : "";
+  const info = task.refInfo?.ref === n ? task.refInfo : null;
   // The last lookup this field ran, so a number that wasn't found isn't retried on every render.
   const [tried, setTried] = useState<{ n: string; busy: boolean; error: string | null } | null>(null);
 
@@ -266,12 +376,12 @@ export function TicketInfo({ task }: { task: Task }) {
   };
 
   useEffect(() => {
-    if (!m.config.cw || !n || info || tried?.n === n) return;
+    if (!on || !n || info || tried?.n === n) return;
     const id = setTimeout(() => void lookup(), 800);
     return () => clearTimeout(id);
-  }, [m.config.cw, n, info, tried?.n]);
+  }, [on, n, info, tried?.n]);
 
-  if (!m.config.cw || !n) return null;
+  if (!on || !n) return null;
   const current = tried?.n === n ? tried : null;
   if (current?.busy) return <p className="ticket muted small">Looking up #{n}…</p>;
   if (current?.error) {

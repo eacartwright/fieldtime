@@ -28,13 +28,13 @@ export function TaskList({ onOpen, onOpenProject }: { onOpen: (id: Id) => void; 
     }
   };
   const base = m.recent.filter(inView);
-  const list = groupId ? base.filter((t) => t.task.groupId === groupId) : base;
+  const list = groupId ? base.filter((t) => t.groupItem?.id === groupId) : base;
   if (view === "inbox") list.sort((a, b) => b.task.createdAt - a.task.createdAt);
 
   // Clients that appear in this view, most recently worked first.
   const groupsInView: { id: Id; name: string }[] = [];
   for (const t of base) {
-    if (t.group && !groupsInView.some((g) => g.id === t.group!.id)) groupsInView.push(t.group);
+    if (t.groupItem && !groupsInView.some((g) => g.id === t.groupItem!.id)) groupsInView.push(t.groupItem);
   }
   const inboxCount = m.recent.filter((t) => t.inbox).length;
   const todayTotal = view === "today" ? list.reduce((sum, t) => sum + taskTotals(t, now).today, 0) : 0;
@@ -59,7 +59,7 @@ export function TaskList({ onOpen, onOpenProject }: { onOpen: (id: Id) => void; 
       {view === "projects" && <ProjectList onOpenProject={onOpenProject} />}
 
       {groupsInView.length > 0 && (
-        <div className="chips" aria-label={`Filter by ${m.config.groupLabel.toLowerCase()}`}>
+        <div className="chips" aria-label={`Filter by ${m.groupBy?.label.toLowerCase()}`}>
           <button className={`chip ${groupId === null ? "chip-on" : ""}`} onClick={() => setGroupId(null)}>
             All
           </button>
@@ -116,8 +116,7 @@ export function TaskRow({
   const meta = [
     !running && info.task.pausedAt && "Paused",
     showProject && info.projectPath,
-    info.group?.name,
-    info.task.ref && `#${info.task.ref.trim().replace(/^#+/, "")}`,
+    ...info.fieldTexts,
     view === "inbox" ? `added ${whenLabel(info.task.createdAt, now)}` : whenLabel(info.lastTouched, now),
     view === "today" ? `${hm(today)} today` : total > 0 && hm(total),
   ].filter(Boolean);

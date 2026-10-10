@@ -1,15 +1,27 @@
-import { durationMs, firstLine, startOfDay, type Id, type Ms, type Session } from "@fieldtime/shared";
+import {
+  DEFAULT_ENTRY_FORMAT,
+  durationMs,
+  firstLine,
+  startOfDay,
+  type EntryFormat,
+  type FieldDef,
+  type FieldValue,
+  type Id,
+  type Ms,
+  type Session,
+} from "@fieldtime/shared";
 import { useRef, useState } from "react";
 import { copyText } from "../clipboard";
-import { dayLabel, hm, whenLabel } from "../format";
-import { useA, useM, useNow, type TaskInfo } from "../model";
+import { dayLabel, entryDate, entryHours, entryTime, hm, whenLabel } from "../format";
+import { bareText, fieldText, useA, useM, useNow, type Model, type TaskInfo } from "../model";
 import { Dialog } from "./Dialog";
-import { CategorySelect, GroupPicker, TicketInfo } from "./fields";
+import { FieldInput, TicketInfo } from "./fields";
 import { defaultManualSpan, SessionEditor } from "./SessionEditor";
 
-// Time entries, ready to type into ConnectWise. Grouped by task (you enter them ticket by
-// ticket): the task's Ticket # and Client once, then one block per session (one session =
-// one CW entry) with the rest of CW's fields. Every field copies with one click.
+// Time entries, ready to type into another system (ConnectWise at this job). Grouped by task
+// (entries go in ticket by ticket): the task fields once, then one block per session (one
+// session = one entry). What's shown, in what order and format, is the profile's entryFormat.
+// Every field copies with one click.
 // "To enter" is everything not yet marked entered, across days; "By day" is a day's log.
 
 type Mode = "todo" | "day";
@@ -17,15 +29,26 @@ type Mode = "todo" | "day";
 const CONTINUATION = "Continuation of previous work";
 const pad = (n: number) => n.toString().padStart(2, "0");
 
-// Built by hand: toLocale* puts a narrow no-break space before AM/PM, which pastes badly.
-function cwDate(t: Ms) {
-  const d = new Date(t);
-  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}/${d.getFullYear()}`;
+const TIMES = new Set(["date", "start", "end", "hours"]);
+
+/** The entry format, with the profile's fields split into task-level and per-entry. */
+function layout(m: Model) {
+  const fmt: EntryFormat = m.profile.entryFormat ?? {
+    ...DEFAULT_ENTRY_FORMAT,
+    // Without an entryFormat, every field the profile has.
+    fields: [...DEFAULT_ENTRY_FORMAT.fields, ...m.profile.fields.map((d) => d.key)],
+  };
+  const def = (k: string) => m.profile.fields.find((d) => d.key === k);
+  const taskDefs = fmt.fields.map(def).filter((d): d is FieldDef => d?.on === "task");
+  const sessionKeys = fmt.fields.filter((k) => !def(k) || def(k)!.on === "session");
+  return { fmt, def, taskDefs, sessionKeys, target: fmt.target ?? "the other system" };
 }
-function cwTime(t: Ms) {
-  const d = new Date(t);
-  const h = d.getHours();
-  return `${h % 12 || 12}:${pad(d.getMinutes())} ${h < 12 ? "AM" : "PM"}`;
+
+/** What a field copies as: a list item's name, a ticket # without its "#". */
+function copyValue(m: Model, d: FieldDef, v: FieldValue | undefined): string {
+  if (d.type === "text") return bareText(d, v);
+  if (d.type === "bool") return v ? "Yes" : "";
+  return fieldText(d, v, m.view);
 }
 /** Start of the day `n` days from `day` (safe across DST changes). */
 const addDays = (day: Ms, n: number) => startOfDay(day + n * 86_400_000 + 12 * 3_600_000);
@@ -151,19 +174,21 @@ function TaskGroup({
   const pickedList = sessions.filter((s) => picked.has(s.id));
   const pickedSameDay = pickedList.every((s) => startOfDay(s.start) === startOfDay(pickedList[0]!.start));
   const changed = sessions.filter((s) => s.changedSinceEntered && !s.enteredAt).length;
-  const ref = info.task.ref.trim().replace(/^#/, "");
+  const { fmt, def, taskDefs, sessionKeys, target } = layout(m);
   const total = sessions.reduce((t, s) => t + durationMs(s, now), 0);
   const entered = sessions.filter((s) => s.enteredAt).length;
   const enterable = sessions.filter((s) => !s.enteredAt && s.end !== null);
+  const fields = info.task.fields;
   const missing = [
-    !ref && "ticket #",
-    !info.group && m.config.groupLabel.toLowerCase(),
-    sessions.some((s) => !s.categoryId) && m.config.categoryLabel.toLowerCase(),
-    changed > 0 && `CW update (${changed} changed)`,
+    ...taskDefs.filter((d) => !copyValue(m, d, fields[d.key])).map((d) => d.label.toLowerCase()),
+    ...sessionKeys
+      .map(def)
+      .filter((d): d is FieldDef => !!d && sessions.some((s) => !copyValue(m, d, s.fields[d.key])))
+      .map((d) => d.label.toLowerCase()),
+    changed > 0 && `${target} update (${changed} changed)`,
   ].filter(Boolean);
   const meta = [
-    ref && `#${ref}`,
-    info.group?.name,
+    ...taskDefs.map((d) => fieldText(d, fields[d.key], m.view)),
     entered ? `${entered} of ${sessions.length} entered` : `${sessions.length} ${sessions.length === 1 ? "entry" : "entries"}`,
     hm(total),
   ].filter(Boolean);
@@ -183,22 +208,23 @@ function TaskGroup({
 
       {open && (
         <div className="entry-task-body">
-          <div className="entry-fields">
-            {ref ? (
-              <CopyField label="Ticket #" value={ref} />
-            ) : (
-              <Missing label="Ticket #">
-                <CommitInput placeholder="Add ticket #" onCommit={(v) => a.updateTask(info.task.id, { ref: v })} />
-              </Missing>
-            )}
-            {info.group ? (
-              <CopyField label={m.config.groupLabel} value={info.group.name} />
-            ) : (
-              <Missing label={m.config.groupLabel}>
-                <GroupPicker value={null} onChange={(groupId) => a.updateTask(info.task.id, { groupId })} />
-              </Missing>
-            )}
-          </div>
+          {taskDefs.length > 0 && (
+            <div className="entry-fields">
+              {taskDefs.map((d) => {
+                const value = copyValue(m, d, fields[d.key]);
+                if (value) return <CopyField key={d.key} label={d.label} value={value} />;
+                return (
+                  <Missing key={d.key} label={d.label}>
+                    {d.type === "text" ? (
+                      <CommitInput placeholder={`Add ${d.label.toLowerCase()}`} onCommit={(v) => a.setTaskField(info.task.id, d.key, v)} />
+                    ) : (
+                      <FieldInput def={d} value={undefined} onChange={(v) => a.setTaskField(info.task.id, d.key, v)} />
+                    )}
+                  </Missing>
+                );
+              })}
+            </div>
+          )}
           <TicketInfo task={info.task} />
 
           {merging ? (
@@ -219,8 +245,8 @@ function TaskGroup({
                   />
                   <span className="merge-row-text">
                     <span>
-                      {dayLabel(s.start, now)} · {cwTime(s.start)}–{s.end ? cwTime(s.end) : "now"} ·{" "}
-                      {(durationMs(s, now) / 3_600_000).toFixed(2)} h
+                      {dayLabel(s.start, now)} · {entryTime(s.start, fmt.time)}–{s.end ? entryTime(s.end, fmt.time) : "now"} ·{" "}
+                      {entryHours(durationMs(s, now), fmt.hours)} h
                     </span>
                     <span className="row-meta">{firstLine(s.notes) || CONTINUATION}</span>
                   </span>
@@ -312,8 +338,8 @@ function SessionEntry({
   const m = useM();
   const a = useA();
   const running = s.end === null;
-  const category = s.categoryId ? m.view.categories[s.categoryId] : undefined;
   const dur = durationMs(s, now);
+  const { fmt, def, sessionKeys, target } = layout(m);
 
   if (editing) {
     return (
@@ -323,33 +349,43 @@ function SessionEntry({
     );
   }
 
-  return (
-    <article className={`entry ${s.enteredAt ? "entered" : ""}`}>
-      {s.changedSinceEntered && !s.enteredAt && (
-        <div className="warn small">⚠ Changed after you entered it. Update the entry in ConnectWise, then mark it again.</div>
-      )}
-      <div className="entry-times">
-        <CopyField label="Date" value={cwDate(s.start)} stacked />
-        <CopyField label="Start" value={cwTime(s.start)} stacked />
-        {running ? (
-          <Missing label="End" stacked>
+  const time = (k: string) => {
+    switch (k) {
+      case "date":
+        return <CopyField key={k} label="Date" value={entryDate(s.start, fmt.date)} stacked />;
+      case "start":
+        return <CopyField key={k} label="Start" value={entryTime(s.start, fmt.time)} stacked />;
+      case "end":
+        return running ? (
+          <Missing key={k} label="End" stacked>
             <span className="muted">running</span>
           </Missing>
         ) : (
-          <CopyField label="End" value={cwTime(s.end!)} stacked />
-        )}
-        <CopyField label="Hours" value={(dur / 3_600_000).toFixed(2)} stacked />
-      </div>
-      <div className="entry-fields">
-        {category ? (
-          <CopyField label={m.config.categoryLabel} value={category.name} />
-        ) : (
-          <Missing label={m.config.categoryLabel}>
-            <CategorySelect value={null} onChange={(categoryId) => a.updateSession(s.id, { categoryId })} />
-          </Missing>
-        )}
-        <CopyField label="Notes" value={s.notes.trim() || CONTINUATION} multiline />
-      </div>
+          <CopyField key={k} label="End" value={entryTime(s.end!, fmt.time)} stacked />
+        );
+      case "hours":
+        return <CopyField key={k} label="Hours" value={entryHours(dur, fmt.hours)} stacked />;
+    }
+  };
+  const field = (k: string) => {
+    if (k === "notes") return <CopyField key={k} label="Notes" value={s.notes.trim() || CONTINUATION} multiline />;
+    const d = def(k)!;
+    const value = copyValue(m, d, s.fields[k]);
+    if (value) return <CopyField key={k} label={d.label} value={value} />;
+    return (
+      <Missing key={k} label={d.label}>
+        <FieldInput def={d} value={undefined} resetKey={s.id} onChange={(v) => a.setSessionField(s.id, k, v)} />
+      </Missing>
+    );
+  };
+
+  return (
+    <article className={`entry ${s.enteredAt ? "entered" : ""}`}>
+      {s.changedSinceEntered && !s.enteredAt && (
+        <div className="warn small">⚠ Changed after you entered it. Update the entry in {target}, then mark it again.</div>
+      )}
+      <div className="entry-times">{sessionKeys.filter((k) => TIMES.has(k)).map(time)}</div>
+      <div className="entry-fields">{sessionKeys.filter((k) => !TIMES.has(k)).map(field)}</div>
 
       <footer className="entry-foot">
         <span className="muted small">{dayLabel(s.start, now)}</span>
@@ -368,7 +404,7 @@ function SessionEntry({
           <button
             className="btn primary"
             disabled={running}
-            title={running ? "Stop it first" : "Done in ConnectWise"}
+            title={running ? "Stop it first" : `Done in ${target}`}
             onClick={() => a.updateSession(s.id, { enteredAt: Date.now() })}
           >
             ✓ Mark entered

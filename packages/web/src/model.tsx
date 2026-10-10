@@ -12,9 +12,13 @@ import {
   settingsOf,
   startOfDay,
   ticketNumber,
-  type Group,
+  type FieldDef,
+  type Fields,
+  type FieldValue,
   type Id,
+  type ListItem,
   type Project,
+  type Profile,
   type ProjectPatch,
   type Session,
   type SessionPatch,
@@ -34,7 +38,10 @@ export interface TaskInfo {
   sessions: Session[];
   title: string;
   titleDerived: boolean;
-  group: Group | undefined;
+  /** The value of the profile's groupBy field (the client). */
+  groupItem: ListItem | undefined;
+  /** Task field values as shown ("#106745", "Acme"), in profile order. */
+  fieldTexts: string[];
   project: Project | undefined;
   /** The project and the ones it sits in, "Acme › Firewall"; "" for none. */
   projectPath: string;
@@ -52,8 +59,11 @@ export interface Model extends Snapshot {
   running: Session[];
   /** Paused tasks (clock stopped, still on the Now stack), most recently paused first. */
   paused: TaskInfo[];
-  groups: Group[];
-  categories: { id: Id; name: string }[];
+  profile: Profile;
+  /** Each list's items that aren't archived, in order. */
+  lists: Map<string, ListItem[]>;
+  /** The field tasks are grouped by (the client), if the profile has one. */
+  groupBy: FieldDef | undefined;
   /** Projects that aren't archived, in tree order. */
   projects: ProjectInfo[];
   settings: Settings;
@@ -68,6 +78,30 @@ export interface ProjectInfo {
 
 export const pathText = (projects: Project[]) => projects.map((p) => p.title || "Untitled").join(" › ");
 
+/** A field's value as shown: a list item's name, a ticket # with its "#", a bool's label. "" if unset. */
+export function fieldText(def: FieldDef, value: FieldValue | undefined, state: State): string {
+  if (value === undefined || value === "" || value === false) return "";
+  if (def.type === "bool") return def.label;
+  if (def.type === "list") return state.lists[String(value)]?.name ?? "";
+  const text = String(value).trim();
+  if (!def.prefix) return text;
+  return def.prefix + text.replace(new RegExp(`^(${def.prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})+\\s*`), "");
+}
+
+/** A session's field values as shown ("Remote - Business Hours"), in profile order. */
+export function sessionFieldTexts(m: Model, s: Session): string[] {
+  return m.profile.fields
+    .filter((d) => d.on === "session")
+    .map((d) => fieldText(d, s.fields[d.key], m.view))
+    .filter(Boolean);
+}
+
+/** A text field's value without its prefix ("#106745 " → "106745"), for copying. */
+export function bareText(def: FieldDef, value: FieldValue | undefined): string {
+  const shown = fieldText(def, value, { lists: {} } as unknown as State);
+  return def.prefix && shown.startsWith(def.prefix) ? shown.slice(def.prefix.length) : shown;
+}
+
 // Task ids in the order they were started on this device, most recent first.
 // Decides which running card is on top (and so which notes field gets focus).
 const activation: Id[] = [];
@@ -77,14 +111,29 @@ function activate(taskId: Id) {
   activation.unshift(taskId);
 }
 
+function listsOf(v: State): Map<string, ListItem[]> {
+  const out = new Map<string, ListItem[]>();
+  for (const item of Object.values(v.lists)) {
+    if (item.archived) continue;
+    out.set(item.list, [...(out.get(item.list) ?? []), item]);
+  }
+  for (const items of out.values()) items.sort((a, b) => a.position - b.position || a.name.localeCompare(b.name));
+  return out;
+}
+
 function derive(snap: Snapshot): Model {
   const v: State = snap.view;
+  const profile = snap.config.profile;
+  const taskDefs = profile.fields.filter((f) => f.on === "task");
+  const groupBy = profile.fields.find((f) => f.groupBy && f.type === "list");
   const byTask = sessionsByTask(v);
   const tasks = new Map<Id, TaskInfo>();
   for (const task of Object.values(v.tasks)) {
     const sessions = byTask.get(task.id) ?? [];
     const { text, derived } = displayTitle(task, sessions);
-    const group = task.groupId ? v.groups[task.groupId] : undefined;
+    const fields: Fields = task.fields ?? {};
+    const fieldTexts = taskDefs.map((d) => fieldText(d, fields[d.key], v)).filter(Boolean);
+    const groupValue = groupBy ? fields[groupBy.key] : undefined;
     const path = projectPath(v, task.projectId);
     const projectText = pathText(path);
     tasks.set(task.id, {
@@ -92,12 +141,13 @@ function derive(snap: Snapshot): Model {
       sessions,
       title: text,
       titleDerived: derived,
-      group,
+      groupItem: groupValue ? v.lists[String(groupValue)] : undefined,
+      fieldTexts,
       project: path[path.length - 1],
       projectPath: projectText,
       lastTouched: lastTouchedAt(task, sessions),
       inbox: isInbox(task, sessions),
-      haystack: [text, task.title, group?.name, projectText, task.ref, task.description, ...sessions.map((s) => s.notes)]
+      haystack: [text, task.title, ...fieldTexts, projectText, task.description, ...sessions.map((s) => s.notes)]
         .filter(Boolean)
         .join("\n")
         .toLowerCase(),
@@ -121,12 +171,9 @@ function derive(snap: Snapshot): Model {
     recent,
     running,
     paused,
-    groups: Object.values(v.groups)
-      .filter((g) => !g.archived)
-      .sort((a, b) => a.name.localeCompare(b.name)),
-    categories: Object.values(v.categories)
-      .filter((c) => !c.archived)
-      .sort((a, b) => a.position - b.position),
+    profile,
+    lists: listsOf(v),
+    groupBy,
     projects: projectTree(Object.values(v.projects).filter((p) => p.status !== "archived")).map(({ project, depth }) => ({
       project,
       depth,
@@ -166,24 +213,28 @@ export function useNow(ms = 1000): number {
 
 export interface Actions {
   /** ▶ New. `alongside` keeps whatever is running going. Returns the new session id. */
-  startNew(title?: string, groupId?: Id | null, alongside?: boolean, projectId?: Id | null): Id | undefined;
+  startNew(title?: string, alongside?: boolean, projectId?: Id | null): Id | undefined;
   /** ▶ on an existing task. */
   continueTask(taskId: Id, alongside?: boolean): void;
   /** Stop the clock but keep the task on the Now stack; everything running if none given. */
   pause(sessionId?: Id): void;
   /** Stop a task (its running session, if any) and take it off the Now stack; everything if none given. */
   stop(target?: { sessionId?: Id; taskId?: Id }): void;
-  addInbox(title: string, groupId: Id | null, projectId?: Id | null): void;
+  addInbox(title: string, projectId: Id | null, fields?: Fields): void;
   updateTask(taskId: Id, patch: TaskPatch): void;
-  /** Fetch the CW ticket behind the task's ref and record it. Resolves to an error message, or null. */
+  /** Set (or with null, clear) one of a task's fields. */
+  setTaskField(taskId: Id, key: string, value: FieldValue | null): void;
+  /** Fetch the CW ticket behind the task's ticket field and record it. Resolves to an error message, or null. */
   lookupTicket(taskId: Id): Promise<string | null>;
   updateSession(sessionId: Id, patch: SessionPatch): void;
+  setSessionField(sessionId: Id, key: string, value: FieldValue | null): void;
   mergeSessions(sessionIds: Id[]): void;
   /** Add time after the fact. Returns the new session id. */
   createSession(taskId: Id, start: number, end: number): Id;
   /** Delete a session, with an Undo toast. */
   deleteSession(sessionId: Id): void;
-  createGroup(name: string): Id;
+  /** Add an item to one of the profile's lists (a new client). */
+  createListItem(list: string, name: string): Id;
   createProject(title: string, parentId: Id | null): Id;
   updateProject(projectId: Id, patch: ProjectPatch): void;
   updateSettings(patch: { blipSec?: number; resumeGapMin?: number }): void;
@@ -207,7 +258,7 @@ export function useActionsFactory(): Actions {
     };
     return {
       notesRef,
-      startNew(title = "", groupId = null, alongside = false, projectId = null) {
+      startNew(title = "", alongside = false, projectId = null) {
         const taskId = newId();
         const sessionId = newId();
         activate(taskId);
@@ -216,7 +267,7 @@ export function useActionsFactory(): Actions {
           type: "task.start",
           taskId,
           sessionId,
-          newTask: { title, groupId, projectId },
+          newTask: { title, projectId },
           mode: alongside ? "alongside" : "switch",
         });
         return sessionId;
@@ -232,30 +283,41 @@ export function useActionsFactory(): Actions {
       stop(target) {
         sync.dispatch({ type: "timer.stop", ...target });
       },
-      addInbox(title, groupId, projectId = null) {
-        sync.dispatch({ type: "task.create", taskId: newId(), title, groupId, projectId });
+      addInbox(title, projectId, fields = {}) {
+        sync.dispatch({ type: "task.create", taskId: newId(), title, projectId, fields });
       },
       updateTask(taskId, patch) {
         sync.dispatch({ type: "task.update", taskId, patch }, 600);
       },
+      setTaskField(taskId, key, value) {
+        sync.dispatch({ type: "task.update", taskId, patch: { fields: { [key]: value } } }, 600);
+      },
       async lookupTicket(taskId) {
-        const task = sync.getSnapshot().view.tasks[taskId];
-        const n = task ? ticketNumber(task.ref) : "";
-        if (!n) return null;
+        const snap = sync.getSnapshot();
+        const cw = snap.config.profile.connectwise;
+        const task = snap.view.tasks[taskId];
+        const n = task && cw ? ticketNumber(String(task.fields[cw.ticketField] ?? "")) : "";
+        if (!cw || !n) return null;
         try {
           const res = await api(`/api/cw/tickets/${n}`);
           const t = (await res.json()) as { summary: string; company: string; closed: boolean };
           // The CW company becomes the client if a client of the same name exists.
-          const name = t.company.trim().toLowerCase();
-          const group = Object.values(sync.getSnapshot().view.groups).find(
-            (g) => !g.archived && g.name.trim().toLowerCase() === name,
-          );
+          const fill: Fields = {};
+          const clientDef = snap.config.profile.fields.find((f) => f.key === cw.clientField);
+          if (clientDef?.list) {
+            const name = t.company.trim().toLowerCase();
+            const item = Object.values(sync.getSnapshot().view.lists).find(
+              (x) => x.list === clientDef.list && !x.archived && x.name.trim().toLowerCase() === name,
+            );
+            if (item) fill[clientDef.key] = item.id;
+          }
           sync.dispatch({
             type: "task.refInfo",
             taskId,
+            field: cw.ticketField,
             ref: n,
             info: { summary: t.summary, company: t.company, closed: t.closed, fetchedAt: Date.now() },
-            groupId: group?.id ?? null,
+            fill,
           });
           return null;
         } catch (err) {
@@ -268,6 +330,9 @@ export function useActionsFactory(): Actions {
       },
       updateSession(sessionId, patch) {
         sync.dispatch({ type: "session.update", sessionId, patch }, 800);
+      },
+      setSessionField(sessionId, key, value) {
+        sync.dispatch({ type: "session.update", sessionId, patch: { fields: { [key]: value } } }, 800);
       },
       mergeSessions(sessionIds) {
         sync.dispatch({ type: "session.merge", sessionIds });
@@ -284,10 +349,10 @@ export function useActionsFactory(): Actions {
           run: () => sync.dispatch({ type: "session.delete", sessionId, undo: true }),
         });
       },
-      createGroup(name) {
-        const groupId = newId();
-        sync.dispatch({ type: "group.create", groupId, name: name.trim() });
-        return groupId;
+      createListItem(list, name) {
+        const itemId = newId();
+        sync.dispatch({ type: "list.create", itemId, list, name: name.trim() });
+        return itemId;
       },
       createProject(title, parentId) {
         const projectId = newId();

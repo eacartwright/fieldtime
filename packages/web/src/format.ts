@@ -1,4 +1,4 @@
-import { startOfDay, type Ms } from "@fieldtime/shared";
+import { startOfDay, type EntryFormat, type Ms } from "@fieldtime/shared";
 
 const pad = (n: number) => n.toString().padStart(2, "0");
 
@@ -29,4 +29,29 @@ export function dayLabel(t: Ms, now: Ms = Date.now()): string {
 /** "10:42 AM" today, "Yesterday", or "Mon, Sep 28". */
 export function whenLabel(t: Ms, now: Ms = Date.now()): string {
   return startOfDay(t) === startOfDay(now) ? timeOfDay(t) : dayLabel(t, now);
+}
+
+// Time entry formats (the profile's entryFormat). Built by hand: toLocale* puts a narrow
+// no-break space before AM/PM, which pastes badly into other systems.
+
+export function entryDate(t: Ms, format: EntryFormat["date"]): string {
+  const d = new Date(t);
+  const [y, m, day] = [d.getFullYear(), pad(d.getMonth() + 1), pad(d.getDate())];
+  if (format === "YYYY-MM-DD") return `${y}-${m}-${day}`;
+  if (format === "DD/MM/YYYY") return `${day}/${m}/${y}`;
+  return `${m}/${day}/${y}`;
+}
+
+export function entryTime(t: Ms, format: EntryFormat["time"]): string {
+  const d = new Date(t);
+  const h = d.getHours();
+  if (format === "HH:mm") return `${pad(h)}:${pad(d.getMinutes())}`;
+  return `${h % 12 || 12}:${pad(d.getMinutes())} ${h < 12 ? "AM" : "PM"}`;
+}
+
+/** 1.25 (decimal) or 1:15. */
+export function entryHours(ms: Ms, format: EntryFormat["hours"]): string {
+  if (format === "decimal") return (ms / 3_600_000).toFixed(2);
+  const m = Math.max(0, Math.round(ms / 60_000));
+  return `${Math.floor(m / 60)}:${pad(m % 60)}`;
 }

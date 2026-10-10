@@ -2,10 +2,12 @@ import {
   applyOp,
   emptyState,
   newId,
+  NO_PROFILE,
   type Changes,
   type Id,
   type Op,
   type OpEnvelope,
+  type Profile,
   type State,
 } from "@fieldtime/shared";
 
@@ -15,8 +17,8 @@ import {
 // connection or closed tab never loses them. Everything is instant locally.
 
 export interface Config {
-  groupLabel: string;
-  categoryLabel: string;
+  /** The job's fields (DESIGN.md §4). */
+  profile: Profile;
   /** The server has ConnectWise set up (ticket lookup). Missing in configs cached before it existed. */
   cw?: boolean;
 }
@@ -32,9 +34,10 @@ export interface Snapshot {
   pending: number;
 }
 
-const CACHE_KEY = "fieldtime:cache";
+// The cache is only a head start until the server answers, so a new shape just gets a new key.
+const CACHE_KEY = "fieldtime:cache:2";
 const PENDING_KEY = "fieldtime:pending";
-const KINDS = ["groups", "categories", "projects", "tasks", "sessions"] as const;
+const KINDS = ["lists", "projects", "tasks", "sessions"] as const;
 
 export class SignedOut extends Error {}
 
@@ -66,7 +69,7 @@ function write(key: string, value: unknown) {
 class Sync {
   private server: State = emptyState();
   private rev = 0;
-  private config: Config = { groupLabel: "Client", categoryLabel: "Work Type" };
+  private config: Config = { profile: NO_PROFILE };
   private loaded = false;
   private pending: OpEnvelope[] = [];
   private inflight = new Set<Id>();
@@ -252,8 +255,16 @@ class Sync {
   }
 }
 
+/** A patch's keys, counting each changed field separately ("fields.ticket"). */
+function patchKeys(p: object): string {
+  return Object.entries(p)
+    .flatMap(([k, v]) => (k === "fields" && v ? Object.keys(v).map((f) => `fields.${f}`) : [k]))
+    .sort()
+    .join();
+}
+
 function sameKeys(a: object, b: object) {
-  return Object.keys(a).sort().join() === Object.keys(b).sort().join();
+  return patchKeys(a) === patchKeys(b);
 }
 
 function sameTarget(a: Op, b: Op): boolean {

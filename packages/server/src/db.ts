@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { DEFAULT_SETTINGS, type Category, type Changes, type Group, type Project, type Session, type Settings, type State, type Task } from "@fieldtime/shared";
+import { DEFAULT_SETTINGS, type Changes, type ListItem, type Project, type Session, type Settings, type State, type Task } from "@fieldtime/shared";
 
 // SQLite persistence. Plain tables with one row per entity, so the file stays
 // readable in any SQLite browser. Schema changes go in MIGRATIONS, in order.
@@ -80,16 +80,51 @@ const MIGRATIONS: string[] = [
   );
   ALTER TABLE tasks ADD COLUMN project_id TEXT;
   `,
+  // Profiles (DESIGN.md §4): client, ticket # and work type become profile fields in a JSON
+  // `fields` column, keyed as in profiles/veritaz-cw.json, and clients and work types become
+  // items of one `list_items` table, keeping their ids. Ticket info records which field and
+  // number it describes. The old columns and tables (group_id, ref, category_id, groups,
+  // categories) are left in place but unused from here on; rows saved later leave them blank.
+  `
+  CREATE TABLE list_items (
+    id TEXT PRIMARY KEY,
+    list TEXT NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    archived INTEGER NOT NULL DEFAULT 0,
+    defaults TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    rev INTEGER NOT NULL
+  );
+  INSERT INTO list_items (id, list, name, position, archived, created_at, updated_at, rev)
+    SELECT id, 'clients', name, 0, archived, created_at, updated_at, rev FROM groups;
+  INSERT INTO list_items (id, list, name, position, archived, created_at, updated_at, rev)
+    SELECT id, 'workTypes', name, position, archived, 0, 0, rev FROM categories;
+  ALTER TABLE tasks ADD COLUMN fields TEXT NOT NULL DEFAULT '{}';
+  ALTER TABLE sessions ADD COLUMN fields TEXT NOT NULL DEFAULT '{}';
+  UPDATE tasks SET fields = json_set(fields, '$.client', group_id) WHERE group_id IS NOT NULL AND group_id <> '';
+  UPDATE tasks SET fields = json_set(fields, '$.ticket', ref) WHERE trim(ref) <> '';
+  UPDATE tasks SET ref_info = json_set(ref_info, '$.field', 'ticket', '$.ref', trim(ltrim(trim(ref), '#')))
+    WHERE ref_info IS NOT NULL;
+  UPDATE sessions SET fields = json_set(fields, '$.workType', category_id) WHERE category_id IS NOT NULL AND category_id <> '';
+  `,
 ];
 
 export type DB = DatabaseSync;
 
-export function openDb(file: string): DB {
+/** Open (creating if needed) and bring the schema up to date. `upTo` stops early, for tests. */
+export function openDb(file: string, upTo = MIGRATIONS.length): DB {
   mkdirSync(dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   const { user_version: version } = db.prepare("PRAGMA user_version").get() as { user_version: number };
-  for (let v = version; v < MIGRATIONS.length; v++) {
+  if (version > 0 && version < upTo) {
+    // Keep a copy from before the schema changes, so a bad migration can be undone.
+    const copy = `${file}.before-v${version + 1}.db`;
+    if (!existsSync(copy)) db.exec(`VACUUM INTO '${copy.replaceAll("'", "''")}'`);
+  }
+  for (let v = version; v < upTo; v++) {
     transaction(db, () => {
       db.exec(MIGRATIONS[v]!);
       db.exec(`PRAGMA user_version = ${v + 1}`);
@@ -122,22 +157,24 @@ export function setRev(db: DB, rev: number) {
   );
 }
 
+const json = <T>(text: string | null, fallback: T): T => (text ? (JSON.parse(text) as T) : fallback);
+
 export function loadState(db: DB): State {
   const row = db.prepare("SELECT value FROM meta WHERE key = 'settings'").get() as { value: string } | undefined;
   const settings: Settings = { ...DEFAULT_SETTINGS, ...(row ? (JSON.parse(row.value) as Partial<Settings>) : {}) };
-  const state: State = { groups: {}, categories: {}, projects: {}, tasks: {}, sessions: {}, settings };
-  for (const r of db.prepare("SELECT * FROM groups").all() as any[]) {
-    state.groups[r.id] = {
+  const state: State = { lists: {}, projects: {}, tasks: {}, sessions: {}, settings };
+  for (const r of db.prepare("SELECT * FROM list_items").all() as any[]) {
+    state.lists[r.id] = {
       id: r.id,
+      list: r.list,
       name: r.name,
+      position: r.position,
       archived: !!r.archived,
+      defaults: json(r.defaults, null),
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       rev: r.rev,
     };
-  }
-  for (const r of db.prepare("SELECT * FROM categories").all() as any[]) {
-    state.categories[r.id] = { id: r.id, name: r.name, position: r.position, archived: !!r.archived, rev: r.rev };
   }
   for (const r of db.prepare("SELECT * FROM projects").all() as any[]) {
     state.projects[r.id] = {
@@ -156,12 +193,11 @@ export function loadState(db: DB): State {
       id: r.id,
       title: r.title,
       projectId: r.project_id,
-      groupId: r.group_id,
-      ref: r.ref,
+      fields: json(r.fields, {}),
       description: r.description,
       status: r.status,
       pausedAt: r.paused_at,
-      refInfo: r.ref_info ? JSON.parse(r.ref_info) : null,
+      refInfo: json(r.ref_info, null),
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       rev: r.rev,
@@ -175,7 +211,7 @@ export function loadState(db: DB): State {
       end: r.end,
       deductMin: r.deduct_min,
       notes: r.notes,
-      categoryId: r.category_id,
+      fields: json(r.fields, {}),
       enteredAt: r.entered_at,
       changedSinceEntered: !!r.changed_since_entered,
       deleted: !!r.deleted,
@@ -187,21 +223,30 @@ export function loadState(db: DB): State {
 }
 
 export function saveChanges(db: DB, c: Changes) {
-  const g = db.prepare(`INSERT OR REPLACE INTO groups (id, name, archived, created_at, updated_at, rev)
-    VALUES (@id, @name, @archived, @createdAt, @updatedAt, @rev)`);
-  const cat = db.prepare(`INSERT OR REPLACE INTO categories (id, name, position, archived, rev)
-    VALUES (@id, @name, @position, @archived, @rev)`);
-  const t = db.prepare(`INSERT OR REPLACE INTO tasks (id, title, project_id, group_id, ref, ref_info, description, status, paused_at, created_at, updated_at, rev)
-    VALUES (@id, @title, @projectId, @groupId, @ref, @refInfo, @description, @status, @pausedAt, @createdAt, @updatedAt, @rev)`);
+  const l = db.prepare(`INSERT OR REPLACE INTO list_items (id, list, name, position, archived, defaults, created_at, updated_at, rev)
+    VALUES (@id, @list, @name, @position, @archived, @defaults, @createdAt, @updatedAt, @rev)`);
+  const t = db.prepare(`INSERT OR REPLACE INTO tasks (id, title, project_id, fields, ref_info, description, status, paused_at, created_at, updated_at, rev)
+    VALUES (@id, @title, @projectId, @fields, @refInfo, @description, @status, @pausedAt, @createdAt, @updatedAt, @rev)`);
   const p = db.prepare(`INSERT OR REPLACE INTO projects (id, title, parent_id, description, status, created_at, updated_at, rev)
     VALUES (@id, @title, @parentId, @description, @status, @createdAt, @updatedAt, @rev)`);
-  const s = db.prepare(`INSERT OR REPLACE INTO sessions (id, task_id, start, "end", deduct_min, notes, category_id, entered_at, changed_since_entered, deleted, updated_at, rev)
-    VALUES (@id, @taskId, @start, @end, @deductMin, @notes, @categoryId, @enteredAt, @changedSinceEntered, @deleted, @updatedAt, @rev)`);
-  for (const x of c.groups) g.run({ ...x, archived: x.archived ? 1 : 0 } satisfies Record<keyof Group, unknown>);
-  for (const x of c.categories) cat.run({ ...x, archived: x.archived ? 1 : 0 } satisfies Record<keyof Category, unknown>);
+  const s = db.prepare(`INSERT OR REPLACE INTO sessions (id, task_id, start, "end", deduct_min, notes, fields, entered_at, changed_since_entered, deleted, updated_at, rev)
+    VALUES (@id, @taskId, @start, @end, @deductMin, @notes, @fields, @enteredAt, @changedSinceEntered, @deleted, @updatedAt, @rev)`);
+  for (const x of c.lists) {
+    l.run({
+      ...x,
+      archived: x.archived ? 1 : 0,
+      defaults: x.defaults ? JSON.stringify(x.defaults) : null,
+    } satisfies Record<keyof ListItem, unknown>);
+  }
   for (const x of c.projects) p.run({ ...x } satisfies Record<keyof Project, unknown>);
   for (const x of c.tasks) {
-    t.run({ ...x, projectId: x.projectId ?? null, pausedAt: x.pausedAt ?? null, refInfo: x.refInfo ? JSON.stringify(x.refInfo) : null });
+    t.run({
+      ...x,
+      projectId: x.projectId ?? null,
+      fields: JSON.stringify(x.fields ?? {}),
+      pausedAt: x.pausedAt ?? null,
+      refInfo: x.refInfo ? JSON.stringify(x.refInfo) : null,
+    } satisfies Record<keyof Task, unknown>);
   }
   if (c.settings) {
     db.prepare(
@@ -211,6 +256,7 @@ export function saveChanges(db: DB, c: Changes) {
   for (const x of c.sessions) {
     s.run({
       ...x,
+      fields: JSON.stringify(x.fields ?? {}),
       enteredAt: x.enteredAt ?? null,
       changedSinceEntered: x.changedSinceEntered ? 1 : 0,
       deleted: x.deleted ? 1 : 0,

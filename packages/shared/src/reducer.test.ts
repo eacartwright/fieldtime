@@ -15,7 +15,7 @@ function run(state: State, at: number, op: Op) {
   applyOp(state, env);
 }
 const startNew = (s: State, at: number, taskId: string, mode?: StartMode) =>
-  run(s, at, { type: "task.start", taskId, sessionId: `${taskId}@${at}`, newTask: { title: "", groupId: null }, mode });
+  run(s, at, { type: "task.start", taskId, sessionId: `${taskId}@${at}`, newTask: { title: "" }, mode });
 const cont = (s: State, at: number, taskId: string, mode?: StartMode) =>
   run(s, at, { type: "task.start", taskId, sessionId: `${taskId}@${at}`, mode });
 const stop = (s: State, at: number, sessionId?: string) => run(s, at, { type: "timer.stop", sessionId });
@@ -59,10 +59,10 @@ describe("switching", () => {
   it("new session inherits the task's previous work type", () => {
     const s = emptyState();
     startNew(s, T0, "A");
-    run(s, T0 + M, { type: "session.update", sessionId: `A@${T0}`, patch: { categoryId: "remote" } });
+    run(s, T0 + M, { type: "session.update", sessionId: `A@${T0}`, patch: { fields: { workType: "remote" } } });
     startNew(s, T0 + H, "B");
     cont(s, T0 + 2 * H, "A");
-    expect(s.sessions[`A@${T0 + 2 * H}`]!.categoryId).toBe("remote");
+    expect(s.sessions[`A@${T0 + 2 * H}`]!.fields.workType).toBe("remote");
   });
 
   it("finishing a running task stops it", () => {
@@ -359,11 +359,11 @@ describe("editing", () => {
   it("adds a manual session with the task's work type", () => {
     const s = emptyState();
     startNew(s, T0, "A");
-    run(s, T0 + M, { type: "session.update", sessionId: `A@${T0}`, patch: { categoryId: "remote" } });
+    run(s, T0 + M, { type: "session.update", sessionId: `A@${T0}`, patch: { fields: { workType: "remote" } } });
     stop(s, T0 + H);
     run(s, T0 + 5 * H, { type: "session.create", sessionId: "m1", taskId: "A", start: T0 + 2 * H, end: T0 + 3 * H });
     expect(live(s, "A")).toHaveLength(2);
-    expect(s.sessions.m1!.categoryId).toBe("remote");
+    expect(s.sessions.m1!.fields.workType).toBe("remote");
   });
 
   it("refuses a manual session that ends before it starts", () => {
@@ -446,50 +446,152 @@ describe("ticket lookup", () => {
   const info = { summary: "Printer offline", company: "Acme", closed: false, fetchedAt: T0 };
   const withTask = (title = "") => {
     const s = emptyState();
-    run(s, T0, { type: "group.create", groupId: "acme", name: "Acme" });
-    run(s, T0, { type: "task.create", taskId: "A", title, groupId: null });
-    run(s, T0, { type: "task.update", taskId: "A", patch: { ref: "#123 " } });
+    run(s, T0, { type: "list.create", itemId: "acme", list: "clients", name: "Acme" });
+    run(s, T0, { type: "task.create", taskId: "A", title });
+    run(s, T0, { type: "task.update", taskId: "A", patch: { fields: { ticket: "#123 " } } });
     return s;
   };
-  const lookup = (s: State, ref: string, groupId: string | null = "acme") =>
-    run(s, T0 + M, { type: "task.refInfo", taskId: "A", ref, info, groupId });
+  const lookup = (s: State, ref: string, fill: Record<string, string> = { client: "acme" }) =>
+    run(s, T0 + M, { type: "task.refInfo", taskId: "A", field: "ticket", ref, info, fill });
 
   it("fills an untitled task's title and client", () => {
     const s = withTask();
     lookup(s, "123");
-    expect(s.tasks.A).toMatchObject({ refInfo: info, title: "Printer offline", groupId: "acme" });
+    expect(s.tasks.A).toMatchObject({ refInfo: { ...info, field: "ticket", ref: "123" }, title: "Printer offline" });
+    expect(s.tasks.A!.fields).toEqual({ ticket: "#123 ", client: "acme" });
   });
 
   it("never replaces a title or client set meanwhile", () => {
     const s = withTask("My title");
-    run(s, T0, { type: "group.create", groupId: "other", name: "Other" });
-    run(s, T0, { type: "task.update", taskId: "A", patch: { groupId: "other" } });
+    run(s, T0, { type: "task.update", taskId: "A", patch: { fields: { client: "other" } } });
     lookup(s, "123");
-    expect(s.tasks.A).toMatchObject({ refInfo: info, title: "My title", groupId: "other" });
+    expect(s.tasks.A).toMatchObject({ title: "My title", fields: { client: "other" } });
   });
 
-  it("ignores a lookup for a ref that has since changed", () => {
+  it("ignores a lookup for a ticket # that has since changed", () => {
     const s = withTask();
-    run(s, T0, { type: "task.update", taskId: "A", patch: { ref: "456" } });
+    run(s, T0, { type: "task.update", taskId: "A", patch: { fields: { ticket: "456" } } });
     lookup(s, "123");
     expect(s.tasks.A!.refInfo ?? null).toBeNull();
     expect(s.tasks.A!.title).toBe("");
   });
 
-  it("clears the info when the ref changes, but not when only its formatting does", () => {
+  it("clears the info when the ticket # changes, but not when only its formatting does", () => {
     const s = withTask();
     lookup(s, "123");
-    run(s, T0 + 2 * M, { type: "task.update", taskId: "A", patch: { ref: "123" } });
-    expect(s.tasks.A!.refInfo).toEqual(info);
-    run(s, T0 + 3 * M, { type: "task.update", taskId: "A", patch: { ref: "124" } });
+    run(s, T0 + 2 * M, { type: "task.update", taskId: "A", patch: { fields: { ticket: "123" } } });
+    expect(s.tasks.A!.refInfo?.ref).toBe("123");
+    run(s, T0 + 2 * M, { type: "task.update", taskId: "A", patch: { fields: { client: null } } });
+    expect(s.tasks.A!.refInfo?.ref).toBe("123");
+    run(s, T0 + 3 * M, { type: "task.update", taskId: "A", patch: { fields: { ticket: "124" } } });
     expect(s.tasks.A!.refInfo).toBeNull();
   });
 
-  it("is safe to apply twice and skips an unknown group", () => {
+  it("is safe to apply twice", () => {
     const s = withTask();
-    lookup(s, "123", "nope");
-    lookup(s, "123", "nope");
-    expect(s.tasks.A).toMatchObject({ title: "Printer offline", groupId: null, refInfo: info });
+    lookup(s, "123", {});
+    lookup(s, "123", {});
+    expect(s.tasks.A).toMatchObject({ title: "Printer offline", fields: { ticket: "#123 " } });
+  });
+});
+
+describe("fields", () => {
+  it("merges a patch key by key; null, empty and false clear a key", () => {
+    const s = emptyState();
+    run(s, T0, { type: "task.create", taskId: "A", title: "a", fields: { client: "acme", ticket: "" } });
+    expect(s.tasks.A!.fields).toEqual({ client: "acme" });
+    run(s, T0, { type: "task.update", taskId: "A", patch: { fields: { ticket: "5", urgent: true } } });
+    run(s, T0, { type: "task.update", taskId: "A", patch: { fields: { client: null, urgent: false } } });
+    expect(s.tasks.A!.fields).toEqual({ ticket: "5" });
+  });
+
+  it("a new session inherits each field from the latest earlier session that has it", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    run(s, T0 + M, { type: "session.update", sessionId: `A@${T0}`, patch: { fields: { workType: "remote", billing: "No Charge" } } });
+    stop(s, T0 + H);
+    cont(s, T0 + 2 * H, "A");
+    run(s, T0 + 2 * H + M, { type: "session.update", sessionId: `A@${T0 + 2 * H}`, patch: { fields: { workType: "onsite" } } });
+    stop(s, T0 + 3 * H);
+    cont(s, T0 + 4 * H, "A");
+    expect(s.sessions[`A@${T0 + 4 * H}`]!.fields).toEqual({ workType: "onsite", billing: "No Charge" });
+  });
+
+  it("changing a field of an entered session flags it; setting the same value doesn't", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    stop(s, T0 + H);
+    const id = `A@${T0}`;
+    run(s, T0 + H, { type: "session.update", sessionId: id, patch: { fields: { workType: "remote" }, enteredAt: T0 + H } });
+    run(s, T0 + 2 * H, { type: "session.update", sessionId: id, patch: { fields: { workType: "remote" } } });
+    expect(s.sessions[id]).toMatchObject({ enteredAt: T0 + H, changedSinceEntered: false });
+    run(s, T0 + 2 * H, { type: "session.update", sessionId: id, patch: { fields: { workType: "onsite" } } });
+    expect(s.sessions[id]).toMatchObject({ enteredAt: null, changedSinceEntered: true });
+  });
+
+  it("a merge takes each field from the earliest part that has it", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    stop(s, T0 + H);
+    cont(s, T0 + 2 * H, "A");
+    stop(s, T0 + 3 * H);
+    run(s, T0 + 3 * H, { type: "session.update", sessionId: `A@${T0}`, patch: { fields: { workType: "remote" } } });
+    run(s, T0 + 3 * H, { type: "session.update", sessionId: `A@${T0 + 2 * H}`, patch: { fields: { workType: "onsite", billing: "Billable" } } });
+    run(s, T0 + 4 * H, { type: "session.merge", sessionIds: [`A@${T0}`, `A@${T0 + 2 * H}`] });
+    expect(s.sessions[`A@${T0}`]!.fields).toEqual({ workType: "remote", billing: "Billable" });
+  });
+
+  it("list items get the next position in their own list", () => {
+    const s = emptyState();
+    run(s, T0, { type: "list.create", itemId: "a", list: "workTypes", name: "A" });
+    run(s, T0, { type: "list.create", itemId: "x", list: "clients", name: "X" });
+    run(s, T0, { type: "list.create", itemId: "b", list: "workTypes", name: "B" });
+    expect([s.lists.a!.position, s.lists.x!.position, s.lists.b!.position]).toEqual([0, 0, 1]);
+  });
+});
+
+describe("ops queued before profiles", () => {
+  // Shapes an old app version may still have in its outbox (migration 8).
+  const legacy = (s: State, at: number, op: object) => run(s, at, op as Op);
+
+  it("maps client, ticket # and work type onto the CW profile's fields", () => {
+    const s = emptyState();
+    legacy(s, T0, { type: "group.create", groupId: "acme", name: "Acme" });
+    legacy(s, T0, { type: "task.create", taskId: "A", title: "a", groupId: "acme" });
+    legacy(s, T0, { type: "task.start", taskId: "B", sessionId: "b1", newTask: { title: "", groupId: null } });
+    legacy(s, T0 + M, { type: "task.update", taskId: "B", patch: { groupId: "acme", ref: "77", title: "b" } });
+    legacy(s, T0 + M, { type: "session.update", sessionId: "b1", patch: { categoryId: "remote", notes: "x" } });
+    legacy(s, T0 + 2 * M, { type: "group.update", groupId: "acme", patch: { name: "Acme Corp" } });
+    expect(s.lists.acme).toMatchObject({ list: "clients", name: "Acme Corp" });
+    expect(s.tasks.A!.fields).toEqual({ client: "acme" });
+    expect(s.tasks.B).toMatchObject({ title: "b", fields: { client: "acme", ticket: "77" } });
+    expect(s.sessions.b1).toMatchObject({ notes: "x", fields: { workType: "remote" } });
+    legacy(s, T0 + 3 * M, { type: "task.update", taskId: "B", patch: { groupId: null } });
+    expect(s.tasks.B!.fields).toEqual({ ticket: "77" });
+  });
+
+  it("a manual session's categoryId: undefined inherits, null means none", () => {
+    const s = emptyState();
+    startNew(s, T0, "A");
+    run(s, T0 + M, { type: "session.update", sessionId: `A@${T0}`, patch: { fields: { workType: "remote" } } });
+    stop(s, T0 + H);
+    legacy(s, T0 + 5 * H, { type: "session.create", sessionId: "m1", taskId: "A", start: T0 + 2 * H, end: T0 + 3 * H });
+    legacy(s, T0 + 5 * H, { type: "session.create", sessionId: "m2", taskId: "A", start: T0 + 3 * H, end: T0 + 4 * H, categoryId: null });
+    expect(s.sessions.m1!.fields).toEqual({ workType: "remote" });
+    expect(s.sessions.m2!.fields).toEqual({});
+  });
+
+  it("an old ticket lookup fills the client only if it exists", () => {
+    const s = emptyState();
+    legacy(s, T0, { type: "group.create", groupId: "acme", name: "Acme" });
+    legacy(s, T0, { type: "task.create", taskId: "A", title: "", groupId: null });
+    legacy(s, T0, { type: "task.update", taskId: "A", patch: { ref: "123" } });
+    const info = { summary: "Printer", company: "Acme", closed: false, fetchedAt: T0 };
+    legacy(s, T0 + M, { type: "task.refInfo", taskId: "A", ref: "123", info, groupId: "nope" });
+    expect(s.tasks.A!.fields).toEqual({ ticket: "123" });
+    legacy(s, T0 + M, { type: "task.update", taskId: "A", patch: { title: "" } });
+    legacy(s, T0 + M, { type: "task.refInfo", taskId: "A", ref: "123", info, groupId: "acme" });
+    expect(s.tasks.A).toMatchObject({ title: "Printer", fields: { ticket: "123", client: "acme" }, refInfo: { field: "ticket", ref: "123" } });
   });
 });
 
@@ -532,9 +634,9 @@ describe("projects", () => {
   it("puts tasks in a project when created, started or edited; an unknown project means none", () => {
     const s = emptyState();
     project(s, "Acme");
-    run(s, T0, { type: "task.create", taskId: "A", title: "a", groupId: null, projectId: "Acme" });
-    run(s, T0, { type: "task.start", taskId: "B", sessionId: "b1", newTask: { title: "", groupId: null, projectId: "Acme" } });
-    run(s, T0, { type: "task.create", taskId: "C", title: "c", groupId: null });
+    run(s, T0, { type: "task.create", taskId: "A", title: "a", projectId: "Acme" });
+    run(s, T0, { type: "task.start", taskId: "B", sessionId: "b1", newTask: { title: "", projectId: "Acme" } });
+    run(s, T0, { type: "task.create", taskId: "C", title: "c" });
     run(s, T0 + M, { type: "task.update", taskId: "C", patch: { projectId: "nope" } });
     expect([s.tasks.A!.projectId, s.tasks.B!.projectId, s.tasks.C!.projectId]).toEqual(["Acme", "Acme", null]);
     run(s, T0 + M, { type: "task.update", taskId: "C", patch: { projectId: "Acme" } });

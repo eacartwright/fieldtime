@@ -130,5 +130,9 @@ Done 2026-10-06 unless marked.
   `data\fieldtime.db`, delete `data\fieldtime.db-wal` and `-shm`, `Start-ScheduledTask fieldtime`.
 - **ConnectWise** (M5 onward): add the `CW_*` lines from the desktop's `.env` to
   `C:\Apps\fieldtime\.env` by hand; install.ps1 and update.ps1 leave them alone.
+- **Profile** (from M5 step 2): add `PROFILE=veritaz-cw` to `C:\Apps\fieldtime\.env` by hand.
+  Without it the server runs with no job fields: client, ticket # and work type are hidden (not
+  lost). The server log says which profile it loaded. The first start after updating also
+  copies the database to `data\fieldtime.db.before-v8.db` before changing it.
 - Record anything that differed from this runbook back in this file (from NOSTROMO; the mini PC's
   clone only pulls).

@@ -35,9 +35,17 @@ installed in a scratch folder, headless. For CW, point the scratch server at a f
   with `processNotifications: false`. Test tickets/notes only on company **19300 Veritaz IT
   Solutions** (`veritasitsolutions`; DESIGN.md §10); the standing test ticket is **#106745**.
   Ids on this instance: boards Tier 1 = 1, Internal = 30; Evan = member 192 (`ecartwright`). Page with `orderBy=id asc` (name ordering repeats records).
-  CW is optional: the server enables it only when `CW_SITE` is set (`config.cw` in `/api/state`;
-  the UI hides CW features otherwise). `npm run dev` loads the root `.env`. Endpoint so far:
+  CW is optional: the server enables it only when `CW_SITE` is set and the profile has a
+  `connectwise` section (`config.cw` in `/api/state`; the UI hides CW features otherwise). `npm run dev` loads the root `.env`. Endpoint so far:
   `GET /api/cw/tickets/:id` → `{summary, company, closed}`.
+- **Profiles** (DESIGN.md §4): job fields are declared in `packages/server/profiles/<name>.json`,
+  chosen with `PROFILE` in `.env` (no PROFILE = no job fields; stored values stay, hidden). Types
+  and validation in `shared/src/profile.ts`; the server loads it at startup (`server/src/profile.ts`,
+  a bad profile stops the server), seeds empty lists from it, and sends it as `config.profile`.
+  Values live in `task.fields` / `session.fields` (`Fields`, unset = absent); list items (clients,
+  work types) are `state.lists` (`ListItem`, `list` says which). UI renders fields generically
+  (`FieldInput`, `TaskFieldInputs`, `SessionFieldInputs` in `fields.tsx`); Time entries follows
+  `entryFormat`. A new field is a profile edit, not a code change.
 - `packages/web` — React + Vite. `sync.ts`: view = server state + pending ops replayed through the
   same reducer; pending ops persist in localStorage before sending (the outbox).
 
@@ -46,6 +54,9 @@ Every change is an **op**. To add one: type in `shared/src/ops.ts` (+ `OP_TYPES`
 safe to re-apply (the client replays pending ops on top of server state).
 
 Schema changes: **append** a migration to `MIGRATIONS` in `server/src/db.ts`; never edit old ones.
+Before migrating an existing database the server copies it to `<db>.before-v<N>.db`.
+Ops from before profiles (groupId, ref, categoryId, group.*) may still sit in a device's outbox;
+`upgradeOp` in the reducer maps them onto the CW profile's keys (`LEGACY_KEYS`). Keep it.
 Deletions are tombstones (`deleted` flag), so they sync like any other change.
 
 ## Rules the reducer enforces (see DESIGN.md §5–6)
@@ -61,12 +72,15 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   when they end.
 - Continuing a task within `settings.resumeGapMin` (default 10) of its last session reopens it.
 - `session.create` (manual time, end > start), `session.delete` (tombstone; `undo` restores).
-  Editing start/end/notes/category/deduct of an entered session clears `enteredAt` and sets
+  Editing start/end/notes/deduct or a field of an entered session clears `enteredAt` and sets
   `changedSinceEntered`; re-marking entered clears it.
 - Settings live in `state.settings` (read with `settingsOf()`; old cached states lack it), change
   via the `settings.update` op, persist as JSON in the server's `meta` table, sync like
   anything else. 0 turns a rule off.
 - Merge: same task, earliest start → latest end, non-empty notes joined. UI limits to one day.
+  Each field comes from the earliest part that has it.
+- Session fields carry over to a task's new session (each from the latest earlier session that
+  has it). A fields patch merges key by key; null, "" or false clears a key.
 - Start/stop use timeline semantics, so ops arriving late from an offline phone land correctly.
 
 ## UI conventions
@@ -127,7 +141,15 @@ Deletions are tombstones (`deleted` flag), so they sync like any other change.
   tasks / inbox / done, ▶ New here, inline add); `ProjectPicker` on the Now card, Task details
   and + Inbox; project path in rows and switcher search. Task details opened from a project
   page returns to it.
-- Next: **M5 step 2** (profile engine + migration), then step 3, then **M1.5 Day calendar**.
+- Done (M5 step 2, most of step 3): **profiles** — migration 8 moved client / ticket # / work
+  type into `fields` and `list_items` (ids kept; old columns unused); `profiles/veritaz-cw.json`;
+  generic field UI everywhere (Now card and + Inbox now have Ticket # too); Time entries from
+  `entryFormat`; old queued ops upgraded by the reducer; pre-migration DB copy. Checked on a
+  seeded v7 copy with the CW profile and with none.
+- Next: **Billing** field + work-type billing defaults (waiting on Evan's values; `ListItem.defaults`
+  and the profile's list-entry `defaults` are in place, applying them on work-type change isn't
+  yet), then the **rename to sideshow** and deploy (PROFILE=veritaz-cw in the mini PC's .env),
+  then **M1.5 Day calendar**.
 
 ## Working with Evan
 

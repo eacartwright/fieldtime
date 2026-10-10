@@ -76,7 +76,7 @@ export function ProjectDetail({
           <button
             className="btn primary"
             onClick={() => {
-              a.startNew("", null, false, projectId);
+              a.startNew("", false, projectId);
               onClose();
             }}
             title="Start a new task in this project"
@@ -150,7 +150,7 @@ export function ProjectDetail({
             ))}
           </ul>
         )}
-        <InlineAdd value={task} onValue={setTask} placeholder="Add to inbox…" onAdd={(title) => a.addInbox(title, null, projectId)} />
+        <InlineAdd value={task} onValue={setTask} placeholder="Add to inbox…" onAdd={(title) => a.addInbox(title, projectId)} />
       </section>
 
       {done.length > 0 && (

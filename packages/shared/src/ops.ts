@@ -1,4 +1,4 @@
-import type { Id, Ms, Project, RefInfo, Session, Settings, Task } from "./types";
+import type { Fields, FieldsPatch, Id, ListItem, Ms, Project, RefInfo, Session, Settings, Task } from "./types";
 
 // Every change to the data is an op. Clients apply ops locally right away and
 // queue them for the server, which applies the same ops with the same reducer.
@@ -15,7 +15,7 @@ export type Op =
       type: "task.start";
       taskId: Id;
       sessionId: Id;
-      newTask?: { title: string; groupId: Id | null; projectId?: Id | null };
+      newTask?: { title: string; projectId?: Id | null; fields?: Fields };
       mode?: StartMode;
     }
   /**
@@ -26,40 +26,48 @@ export type Op =
   /** Stop the clock on a session but keep its task on the Now stack; everything running if no sessionId. */
   | { type: "timer.pause"; sessionId?: Id }
   /** Create a task without starting it (Inbox). */
-  | { type: "task.create"; taskId: Id; title: string; groupId: Id | null; projectId?: Id | null }
+  | { type: "task.create"; taskId: Id; title: string; projectId?: Id | null; fields?: Fields }
   | { type: "task.update"; taskId: Id; patch: TaskPatch }
   /**
-   * The result of looking up the task's ref (a CW ticket). Ignored if the ref has changed since.
-   * Fills the title if the task is still untitled, and the group if it still has none.
+   * The result of looking up a reference field (a CW ticket #). Ignored if the field has
+   * changed since. Fills the title if the task is still untitled, and each of `fill` that's
+   * still unset (the client, from the ticket's company).
    */
-  | { type: "task.refInfo"; taskId: Id; ref: string; info: RefInfo; groupId?: Id | null }
+  | { type: "task.refInfo"; taskId: Id; field: string; ref: string; info: RefLookup; fill?: Fields }
   | { type: "session.update"; sessionId: Id; patch: SessionPatch }
-  /** Add time after the fact (no timer was running). */
+  /** Add time after the fact (no timer was running). Fields default to the task's previous session's. */
   | {
       type: "session.create";
       sessionId: Id;
       taskId: Id;
       start: Ms;
       end: Ms;
-      categoryId?: Id | null;
+      fields?: Fields;
       notes?: string;
     }
   /** Delete a session (a tombstone), or bring it back with `undo`. */
   | { type: "session.delete"; sessionId: Id; undo?: boolean }
   /** Combine sessions of one task into the earliest of them. */
   | { type: "session.merge"; sessionIds: Id[] }
-  | { type: "group.create"; groupId: Id; name: string }
-  | { type: "group.update"; groupId: Id; patch: { name?: string; archived?: boolean } }
+  | { type: "list.create"; itemId: Id; list: string; name: string }
+  | { type: "list.update"; itemId: Id; patch: Partial<Pick<ListItem, "name" | "archived" | "position" | "defaults">> }
   | { type: "project.create"; projectId: Id; title: string; parentId: Id | null }
   /** A parent that would put the project inside itself (or doesn't exist) is ignored. */
   | { type: "project.update"; projectId: Id; patch: ProjectPatch }
   | { type: "settings.update"; patch: Partial<Pick<Settings, "blipSec" | "resumeGapMin">> };
 
-export type TaskPatch = Partial<Pick<Task, "title" | "projectId" | "groupId" | "ref" | "description" | "status">>;
+export type RefLookup = Omit<RefInfo, "field" | "ref">;
+/** `fields` is merged into the task's fields, key by key. */
+export type TaskPatch = Partial<Pick<Task, "title" | "projectId" | "description" | "status">> & { fields?: FieldsPatch };
 export type ProjectPatch = Partial<Pick<Project, "title" | "parentId" | "description" | "status">>;
-export type SessionPatch = Partial<Pick<Session, "notes" | "categoryId" | "start" | "end" | "deductMin" | "enteredAt">>;
+export type SessionPatch = Partial<Pick<Session, "notes" | "start" | "end" | "deductMin" | "enteredAt">> & { fields?: FieldsPatch };
 
-export const OP_TYPES: ReadonlySet<Op["type"]> = new Set([
+/**
+ * Op types the server accepts. "group.*" and the older shapes of some ops (groupId, ref,
+ * categoryId) are from before profiles (migration 8): a device may still have them queued, so
+ * the reducer upgrades them (upgradeOp in reducer.ts).
+ */
+export const OP_TYPES: ReadonlySet<string> = new Set([
   "task.start",
   "timer.stop",
   "timer.pause",
@@ -70,11 +78,13 @@ export const OP_TYPES: ReadonlySet<Op["type"]> = new Set([
   "session.create",
   "session.delete",
   "session.merge",
-  "group.create",
-  "group.update",
+  "list.create",
+  "list.update",
   "project.create",
   "project.update",
   "settings.update",
+  "group.create",
+  "group.update",
 ]);
 
 export interface OpEnvelope {

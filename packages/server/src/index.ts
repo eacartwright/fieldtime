@@ -9,7 +9,7 @@ import { OP_TYPES, type OpEnvelope } from "@fieldtime/shared";
 import { startBackups } from "./backup";
 import { openDb } from "./db";
 import { ConnectWiseClient, CwError, configFromEnv } from "./integrations/connectwise/client";
-import { profile, seedCategories } from "./profile";
+import { loadProfile, profileListChanges } from "./profile";
 import { Store } from "./store";
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -17,12 +17,14 @@ const DB_FILE = process.env.FIELDTIME_DB ?? fileURLToPath(new URL("../../../data
 const BACKUP_DIR = process.env.FIELDTIME_BACKUP_DIR ?? join(dirname(DB_FILE), "backups");
 const WEB_DIST = fileURLToPath(new URL("../../web/dist", import.meta.url));
 
+// Load the profile first: a broken profile file should stop the server before anything changes.
+const profile = loadProfile(process.env.PROFILE);
+console.log(process.env.PROFILE ? `profile: ${profile.name}` : "profile: none (set PROFILE in .env for job fields)");
 const db = openDb(DB_FILE);
 const store = new Store(db);
 const backups = startBackups(db, BACKUP_DIR);
-if (Object.keys(store.state.categories).length === 0) {
-  store.seed({ groups: [], categories: seedCategories(), projects: [], tasks: [], sessions: [] });
-}
+const listChanges = profileListChanges(profile, store.state, Date.now());
+if (listChanges.length) store.seed({ lists: listChanges, projects: [], tasks: [], sessions: [] });
 
 // ConnectWise is optional: without the CW_* settings in .env, ticket lookup is off.
 const cw = (() => {
@@ -49,7 +51,7 @@ app.get("/api/state", (c) =>
   c.json({
     rev: store.rev,
     state: store.state,
-    config: { groupLabel: profile.groupLabel, categoryLabel: profile.categoryLabel, cw: cw !== null },
+    config: { profile, cw: cw !== null && !!profile.connectwise },
   }),
 );
 

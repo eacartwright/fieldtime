@@ -32,17 +32,9 @@ Items marked **(?)** need a word from Evan on what was meant before building.
   Give the running card a direct way to adjust its start ("started 10 min ago" fixes).
 - **Room for vertical scrollbars.** Scrolling panels (desktop) shift or clip content when a
   scrollbar appears. Reserve the gutter (`scrollbar-gutter: stable`) on the scroll areas.
-- **Inbox title starts lowercase on mobile.** The + Inbox title field (`InboxAdd.tsx`) doesn't
-  capitalize the first letter on the iPhone. Add `autoCapitalize="sentences"`.
 - **Any day, not just "Today".** The task list's Today view should be able to show the tasks
   worked on yesterday, last Sunday, any date: a date picker with ◀ ▶, like By day in Time
   entries. Overlaps with the Day report (DESIGN.md §7, Surfaces 6) and the M1.5 Day calendar.
-- **Ticket # wherever a task is edited.** Until finding tickets in fieldtime works well (the
-  ticket search window below, mostly a layout question), the workflow is: find the ticket in CW
-  by hand, paste its number into the task. Every task already has the field (`task.ref`), and
-  pasting it already looks the ticket up, but it only appears in Task details and Time
-  entries. Add it to the running Now card and the + Inbox dialog, so it can be pasted while
-  working or when capturing.
 
 ## Soon — with M5–M8 (projects & profiles, then CW)
 

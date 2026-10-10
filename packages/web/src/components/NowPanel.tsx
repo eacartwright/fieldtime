@@ -1,7 +1,7 @@
 import { durationMs, firstLine, type Id, type Session } from "@fieldtime/shared";
 import { clock, dayLabel, hm, timeOfDay } from "../format";
 import { taskTotals, useA, useM, useNow, type TaskInfo } from "../model";
-import { CategorySelect, DraftInput, DraftTextarea, GroupPicker, ProjectPicker } from "./fields";
+import { DraftInput, DraftTextarea, ProjectPicker, SessionFieldInputs, TaskFieldInputs, TicketInfo } from "./fields";
 
 // The top of the app: one card per running task, most recently started on top,
 // then a compact card per paused task. Pausing (or switching away) keeps a task here;
@@ -144,9 +144,10 @@ function RunningHead({ session, info, now }: { session: Session; info: TaskInfo;
       />
       <div className="now-meta">
         <ProjectPicker value={info.task.projectId ?? null} onChange={(projectId) => a.updateTask(info.task.id, { projectId })} />
-        <GroupPicker value={info.task.groupId} onChange={(groupId) => a.updateTask(info.task.id, { groupId })} />
-        <CategorySelect value={session.categoryId} onChange={(categoryId) => a.updateSession(session.id, { categoryId })} />
+        <TaskFieldInputs task={info.task} />
+        <SessionFieldInputs session={session} />
       </div>
+      <TicketInfo task={info.task} />
     </>
   );
 }
@@ -154,7 +155,7 @@ function RunningHead({ session, info, now }: { session: Session; info: TaskInfo;
 function PausedCard({ info, now, onOpen }: { info: TaskInfo; now: number; onOpen: (taskId: Id) => void }) {
   const a = useA();
   const last = info.sessions[info.sessions.length - 1];
-  const meta = [info.group?.name, `paused ${timeOfDay(info.task.pausedAt!)}`, `${hm(taskTotals(info, now).today)} today`].filter(Boolean);
+  const meta = [info.groupItem?.name, `paused ${timeOfDay(info.task.pausedAt!)}`, `${hm(taskTotals(info, now).today)} today`].filter(Boolean);
   // An untitled task already shows its notes as the title.
   const preview = last && !info.titleDerived ? firstLine(last.notes) : "";
   return (

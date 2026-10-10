@@ -33,7 +33,7 @@ export function Switcher({ alongside = false, onClose }: { alongside?: boolean; 
 
   const act = (item: Item | undefined, along: boolean) => {
     if (!item) return;
-    if (item.kind === "new") a.startNew(item.title, null, along);
+    if (item.kind === "new") a.startNew(item.title, along);
     else a.continueTask(item.info.task.id, along);
     onClose();
   };
@@ -93,8 +93,7 @@ function ResultRow({ info, now, running }: { info: TaskInfo; now: number; runnin
   const { total } = taskTotals(info, now);
   const meta = [
     info.projectPath,
-    info.group?.name,
-    info.task.ref && `#${info.task.ref.trim().replace(/^#+/, "")}`,
+    ...info.fieldTexts,
     info.inbox ? "inbox" : whenLabel(info.lastTouched, now),
     total > 0 && hm(total),
     info.task.status === "done" && "done",

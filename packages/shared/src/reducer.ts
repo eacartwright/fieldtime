@@ -1,6 +1,6 @@
 import { ticketNumber } from "./derive";
-import type { OpEnvelope } from "./ops";
-import { settingsOf, type Changes, type Id, type Ms, type Session, type State } from "./types";
+import type { Op, OpEnvelope } from "./ops";
+import { settingsOf, type Changes, type Fields, type FieldsPatch, type Id, type Ms, type Session, type State } from "./types";
 
 // The single reducer used by both client (optimistic) and server (authoritative).
 // It mutates `state` in place and records which entities it touched.
@@ -19,8 +19,7 @@ import { settingsOf, type Changes, type Id, type Ms, type Session, type State } 
 // where it happened.
 
 export interface Touched {
-  groups: Set<Id>;
-  categories: Set<Id>;
+  lists: Set<Id>;
   projects: Set<Id>;
   tasks: Set<Id>;
   sessions: Set<Id>;
@@ -28,15 +27,14 @@ export interface Touched {
 }
 
 export function newTouched(): Touched {
-  return { groups: new Set(), categories: new Set(), projects: new Set(), tasks: new Set(), sessions: new Set(), settings: false };
+  return { lists: new Set(), projects: new Set(), tasks: new Set(), sessions: new Set(), settings: false };
 }
 
 export function collectChanges(state: State, t: Touched): Changes {
   const pick = <T>(rec: Record<Id, T>, ids: Set<Id>) =>
     [...ids].map((id) => rec[id]).filter((x): x is T => x !== undefined);
   return {
-    groups: pick(state.groups, t.groups),
-    categories: pick(state.categories, t.categories),
+    lists: pick(state.lists, t.lists),
     projects: pick(state.projects, t.projects),
     tasks: pick(state.tasks, t.tasks),
     sessions: pick(state.sessions, t.sessions),
@@ -71,13 +69,102 @@ function nextStartAfter(state: State, t: Ms): Ms | null {
   return next;
 }
 
-/** Work type carries over from the task's most recent earlier session. */
-function inheritedCategory(state: State, taskId: Id, before: Ms): Id | null {
-  let best: Session | undefined;
+/** Session fields (work type…) carry over from the task's earlier sessions: each from the latest that has it. */
+function inheritedFields(state: State, taskId: Id, before: Ms): Fields {
+  const out: Fields = {};
   for (const s of taskSessions(state, taskId)) {
-    if (s.start < before && s.categoryId) best = s;
+    if (s.start < before) Object.assign(out, s.fields);
   }
-  return best?.categoryId ?? null;
+  return out;
+}
+
+const unset = (v: unknown) => v === null || v === undefined || v === "" || v === false;
+
+/** Fields with the unset ones dropped. */
+function cleanFields(fields: FieldsPatch | undefined): Fields {
+  const out: Fields = {};
+  for (const [k, v] of Object.entries(fields ?? {})) if (!unset(v)) out[k] = v!;
+  return out;
+}
+
+/** Merge a patch into fields: null, "" or false clears a key. Returns whether anything changed. */
+function patchFields(fields: Fields, patch: FieldsPatch): boolean {
+  let changed = false;
+  for (const [k, v] of Object.entries(patch)) {
+    if (unset(v)) {
+      if (k in fields) {
+        delete fields[k];
+        changed = true;
+      }
+    } else if (fields[k] !== v) {
+      fields[k] = v!;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/**
+ * Ops queued before profiles (migration 8) use groupId (client), ref (ticket #) and
+ * categoryId (work type), and group.* for the client list. Map them onto the CW profile's
+ * field keys, which is what migration 8 moved the stored values to.
+ */
+export const LEGACY_KEYS = { group: "client", ref: "ticket", category: "workType", groupList: "clients" } as const;
+
+function upgradeOp(state: State, raw: Op): Op {
+  const op = raw as any;
+  const K = LEGACY_KEYS;
+  const legacyTask = (x: any): FieldsPatch => {
+    const f: FieldsPatch = {};
+    if ("groupId" in x) f[K.group] = x.groupId;
+    if ("ref" in x) f[K.ref] = x.ref;
+    return f;
+  };
+  switch (op.type) {
+    case "group.create":
+      return { type: "list.create", itemId: op.groupId, list: K.groupList, name: op.name };
+    case "group.update":
+      return { type: "list.update", itemId: op.groupId, patch: op.patch };
+    case "task.start":
+      if (op.newTask && "groupId" in op.newTask) {
+        const { groupId: _, ...rest } = op.newTask;
+        return { ...op, newTask: { ...rest, fields: cleanFields(legacyTask(op.newTask)) } };
+      }
+      return op;
+    case "task.create":
+      if ("groupId" in op) {
+        const { groupId: _, ...rest } = op;
+        return { ...rest, fields: cleanFields(legacyTask(op)) };
+      }
+      return op;
+    case "task.update":
+      if ("groupId" in op.patch || "ref" in op.patch) {
+        const { groupId: _g, ref: _r, ...rest } = op.patch;
+        return { ...op, patch: { ...rest, fields: { ...rest.fields, ...legacyTask(op.patch) } } };
+      }
+      return op;
+    case "task.refInfo":
+      if (!("field" in op)) {
+        const { groupId, ...rest } = op;
+        const fill = groupId && state.lists[groupId] ? { [K.group]: groupId } : undefined;
+        return { ...rest, field: K.ref, fill };
+      }
+      return op;
+    case "session.update":
+      if ("categoryId" in op.patch) {
+        const { categoryId, ...rest } = op.patch;
+        return { ...op, patch: { ...rest, fields: { ...rest.fields, [K.category]: categoryId } } };
+      }
+      return op;
+    case "session.create":
+      if ("categoryId" in op) {
+        const { categoryId, ...rest } = op;
+        // undefined meant "inherit", null meant "none".
+        return categoryId === undefined ? rest : { ...rest, fields: cleanFields({ [K.category]: categoryId }) };
+      }
+      return op;
+  }
+  return op;
 }
 
 /** The project id if that project exists, otherwise null (no project). */
@@ -115,7 +202,8 @@ function endSession(state: State, s: Session, at: Ms, t: Touched) {
 }
 
 export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()): Touched {
-  const { op, at } = env;
+  const at = env.at;
+  const op = upgradeOp(state, env.op);
 
   switch (op.type) {
     case "task.start": {
@@ -128,8 +216,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
           id: op.taskId,
           title: op.newTask.title,
           projectId: knownProject(state, op.newTask.projectId),
-          groupId: op.newTask.groupId,
-          ref: "",
+          fields: cleanFields(op.newTask.fields),
           description: "",
           status: "open",
           createdAt: at,
@@ -186,7 +273,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         end,
         deductMin: 0,
         notes: "",
-        categoryId: inheritedCategory(state, taskId, at),
+        fields: inheritedFields(state, taskId, at),
         deleted: false,
         updatedAt: at,
         rev: 0,
@@ -227,8 +314,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         id: op.taskId,
         title: op.title,
         projectId: knownProject(state, op.projectId),
-        groupId: op.groupId,
-        ref: "",
+        fields: cleanFields(op.fields),
         description: "",
         status: "open",
         createdAt: at,
@@ -242,14 +328,19 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
     case "task.update": {
       const task = state.tasks[op.taskId];
       if (!task) break;
-      // Ticket info describes the old ref, so it goes when the ref changes.
-      if (op.patch.ref !== undefined && ticketNumber(op.patch.ref) !== ticketNumber(task.ref)) task.refInfo = null;
-      const patch = { ...op.patch };
+      const { fields, ...patch } = op.patch;
+      if (fields) {
+        // Ticket info describes the old number, so it goes when that field changes to another.
+        const info = task.refInfo;
+        if (info && info.field in fields && ticketNumber(String(fields[info.field] ?? "")) !== info.ref) task.refInfo = null;
+        task.fields ??= {};
+        patchFields(task.fields, fields);
+      }
       if (patch.projectId !== undefined) patch.projectId = knownProject(state, patch.projectId);
       Object.assign(task, patch, { updatedAt: at });
       t.tasks.add(task.id);
       // Finishing or archiving a task stops its clock and takes it off the Now stack.
-      if (op.patch.status && op.patch.status !== "open") {
+      if (patch.status && patch.status !== "open") {
         setPaused(state, task.id, null, at, t);
         for (const s of openSessions(state)) if (s.taskId === task.id) endSession(state, s, at, t);
       }
@@ -258,12 +349,13 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
 
     case "task.refInfo": {
       const task = state.tasks[op.taskId];
-      // A lookup that finishes after the ref was changed (here or on another device) is stale.
-      if (!task || !ticketNumber(op.ref) || ticketNumber(task.ref) !== ticketNumber(op.ref)) break;
-      task.refInfo = op.info;
+      const n = ticketNumber(op.ref);
+      // A lookup that finishes after the field was changed (here or on another device) is stale.
+      if (!task || !n || ticketNumber(String(task.fields[op.field] ?? "")) !== n) break;
+      task.refInfo = { ...op.info, field: op.field, ref: n };
       // Fill only what's still empty, so a title or client set meanwhile is never replaced.
       if (!task.title.trim()) task.title = op.info.summary;
-      if (task.groupId === null && op.groupId && state.groups[op.groupId]) task.groupId = op.groupId;
+      for (const [k, v] of Object.entries(op.fill ?? {})) if (!(k in task.fields) && !unset(v)) task.fields[k] = v;
       task.updatedAt = at;
       t.tasks.add(task.id);
       break;
@@ -272,10 +364,12 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
     case "session.update": {
       const s = state.sessions[op.sessionId];
       if (!s || s.deleted) break;
-      const patch = { ...op.patch };
+      const { fields, ...patch } = op.patch;
       // Editing what was already entered elsewhere puts it back on the to-enter list, flagged.
-      const content = ["start", "end", "notes", "categoryId", "deductMin"] as const;
-      const changed = content.some((k) => k in patch && patch[k] !== s[k]);
+      const content = ["start", "end", "notes", "deductMin"] as const;
+      const changed =
+        content.some((k) => k in patch && patch[k] !== s[k]) ||
+        (!!fields && patchFields(structuredClone(s.fields), fields));
       if (patch.enteredAt) s.changedSinceEntered = false;
       else if (s.enteredAt && changed && !("enteredAt" in patch)) {
         patch.enteredAt = null;
@@ -285,6 +379,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       if (patch.end === null && s.end !== null && openSessions(state).some((o) => o.taskId === s.taskId)) {
         delete patch.end;
       }
+      if (fields) patchFields(s.fields, fields);
       Object.assign(s, patch, { updatedAt: at });
       if (s.end !== null && s.end < s.start) s.end = s.start;
       t.sessions.add(s.id);
@@ -301,7 +396,7 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         end: op.end,
         deductMin: 0,
         notes: op.notes ?? "",
-        categoryId: op.categoryId !== undefined ? op.categoryId : inheritedCategory(state, op.taskId, op.start),
+        fields: op.fields !== undefined ? cleanFields(op.fields) : inheritedFields(state, op.taskId, op.start),
         deleted: false,
         updatedAt: at,
         rev: 0,
@@ -335,7 +430,8 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
         .filter(Boolean)
         .join("\n");
       target.deductMin = list.reduce((sum, s) => sum + s.deductMin, 0);
-      target.categoryId = list.find((s) => s.categoryId)?.categoryId ?? null;
+      // Each field from the earliest part that has it.
+      target.fields = Object.assign({}, ...[...list].reverse().map((s) => s.fields));
       // The merged session is a different entry; it only counts as entered if every part was.
       const allEntered = list.every((s) => s.enteredAt);
       target.enteredAt = allEntered ? Math.max(...list.map((s) => s.enteredAt!)) : null;
@@ -350,25 +446,29 @@ export function applyOp(state: State, env: OpEnvelope, t: Touched = newTouched()
       break;
     }
 
-    case "group.create": {
-      if (state.groups[op.groupId]) break;
-      state.groups[op.groupId] = {
-        id: op.groupId,
+    case "list.create": {
+      if (state.lists[op.itemId]) break;
+      const last = Math.max(-1, ...Object.values(state.lists).filter((x) => x.list === op.list).map((x) => x.position));
+      state.lists[op.itemId] = {
+        id: op.itemId,
+        list: op.list,
         name: op.name,
+        position: last + 1,
         archived: false,
+        defaults: null,
         createdAt: at,
         updatedAt: at,
         rev: 0,
       };
-      t.groups.add(op.groupId);
+      t.lists.add(op.itemId);
       break;
     }
 
-    case "group.update": {
-      const g = state.groups[op.groupId];
-      if (!g) break;
-      Object.assign(g, op.patch, { updatedAt: at });
-      t.groups.add(g.id);
+    case "list.update": {
+      const item = state.lists[op.itemId];
+      if (!item) break;
+      Object.assign(item, op.patch, { updatedAt: at });
+      t.lists.add(item.id);
       break;
     }
 

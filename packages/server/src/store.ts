@@ -40,7 +40,7 @@ export class Store {
           record.run(env.id, env.at, Date.now(), JSON.stringify(env.op));
         }
         changes = collectChanges(this.state, touched);
-        const all: { rev: number }[] = [...changes.groups, ...changes.categories, ...changes.projects, ...changes.tasks, ...changes.sessions];
+        const all: { rev: number }[] = [...changes.lists, ...changes.projects, ...changes.tasks, ...changes.sessions];
         if (changes.settings) all.push(changes.settings);
         if (all.length) {
           this.rev += 1;
@@ -57,7 +57,7 @@ export class Store {
     }
 
     const c = changes!;
-    if (c.groups.length || c.categories.length || c.projects.length || c.tasks.length || c.sessions.length || c.settings) {
+    if (c.lists.length || c.projects.length || c.tasks.length || c.sessions.length || c.settings) {
       for (const fn of this.listeners) fn(this.rev, c);
     }
     return c;
@@ -67,11 +67,13 @@ export class Store {
   seed(changes: Changes) {
     transaction(this.db, () => {
       this.rev += 1;
-      for (const e of [...changes.groups, ...changes.categories, ...changes.projects, ...changes.tasks, ...changes.sessions]) e.rev = this.rev;
+      for (const e of [...changes.lists, ...changes.projects, ...changes.tasks, ...changes.sessions]) e.rev = this.rev;
       saveChanges(this.db, changes);
       setRev(this.db, this.rev);
     });
-    for (const c of changes.categories) this.state.categories[c.id] = c;
-    for (const g of changes.groups) this.state.groups[g.id] = g;
+    for (const x of changes.lists) this.state.lists[x.id] = x;
+    for (const x of changes.projects) this.state.projects[x.id] = x;
+    for (const x of changes.tasks) this.state.tasks[x.id] = x;
+    for (const x of changes.sessions) this.state.sessions[x.id] = x;
   }
 }

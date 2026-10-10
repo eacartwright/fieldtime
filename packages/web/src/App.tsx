@@ -46,7 +46,7 @@ export function App() {
         const act: Record<string, () => void> = {
           KeyN: () => {
             setOverlay(null);
-            actions.startNew("", null, e.shiftKey);
+            actions.startNew("", e.shiftKey);
           },
           KeyP: () => {
             // Alt+P pauses the top card; Alt+Shift+P pauses everything.
@@ -84,7 +84,7 @@ export function App() {
                 // A double tap shouldn't create two tasks.
                 if (e.timeStamp - lastNewTap.current < 700) return;
                 lastNewTap.current = e.timeStamp;
-                actions.startNew("", null, e.shiftKey);
+                actions.startNew("", e.shiftKey);
               }}
               title="Start a new task (Alt+N; Shift to run alongside)"
             >
@@ -93,7 +93,7 @@ export function App() {
             <button className="btn" onClick={() => setOverlay({ kind: "inbox" })} title="Add to inbox (Alt+I)">
               + Inbox
             </button>
-            <button className="btn" onClick={() => setOverlay({ kind: "entries" })} title="Time entries to copy into ConnectWise (Alt+E)">
+            <button className="btn" onClick={() => setOverlay({ kind: "entries" })} title="Time entries to copy into another system (Alt+E)">
               Entries
             </button>
           </nav>

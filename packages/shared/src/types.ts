@@ -1,5 +1,6 @@
-// Core data model. Job-agnostic: "group" and "category" are shown with
-// configurable labels (Client / Work Type at the current job). See DESIGN.md §4–5.
+// Core data model. Job-agnostic: everything job-specific (client, ticket #, work type…) is a
+// profile field stored in a record's `fields`, and the lists those fields pick from are
+// ListItems. See DESIGN.md §4–5 and profile.ts.
 
 export type Id = string;
 /** Milliseconds since epoch. */
@@ -7,21 +8,28 @@ export type Ms = number;
 
 export type TaskStatus = "open" | "done" | "archived";
 
-export interface Group {
-  id: Id;
-  name: string;
-  archived: boolean;
-  createdAt: Ms;
-  updatedAt: Ms;
-  /** Server revision of the last change. 0 until the server has seen it. */
-  rev: number;
-}
+/**
+ * Profile field values, keyed by field key (FieldDef.key). A list field holds a ListItem id.
+ * An unset field is absent, never "" or null.
+ */
+export type FieldValue = string | boolean;
+export type Fields = Record<string, FieldValue>;
+/** A change to some fields: null (or "") clears one. */
+export type FieldsPatch = Record<string, FieldValue | null>;
 
-export interface Category {
+/** An item in one of the profile's lists: a client, a work type… */
+export interface ListItem {
   id: Id;
+  /** Which list ("clients", "workTypes"). */
+  list: string;
   name: string;
   position: number;
   archived: boolean;
+  /** Values a session takes when this item is chosen (a work type's billing). */
+  defaults?: Fields | null;
+  createdAt: Ms;
+  updatedAt: Ms;
+  /** Server revision of the last change. 0 until the server has seen it. */
   rev: number;
 }
 
@@ -44,10 +52,11 @@ export interface Task {
   title: string;
   /** Missing on tasks saved before projects existed. */
   projectId?: Id | null;
-  groupId: Id | null;
-  /** External reference, e.g. a ticket number. */
-  ref: string;
-  /** What `ref` points to, looked up in the integration (CW ticket). Cleared when `ref` changes. */
+  fields: Fields;
+  /**
+   * What a reference field points to, looked up in the integration (a CW ticket). Cleared
+   * when that field changes to a different number.
+   */
   refInfo?: RefInfo | null;
   description: string;
   status: TaskStatus;
@@ -62,6 +71,9 @@ export interface Task {
 }
 
 export interface RefInfo {
+  /** The field it was looked up from, and the number it describes. */
+  field: string;
+  ref: string;
   summary: string;
   /** The external system's name for the client (CW company). */
   company: string;
@@ -77,7 +89,7 @@ export interface Session {
   end: Ms | null;
   deductMin: number;
   notes: string;
-  categoryId: Id | null;
+  fields: Fields;
   /** When it was marked as entered into the external system (e.g. a CW time entry). */
   enteredAt?: Ms | null;
   /** Edited after it was marked entered, so the external entry needs fixing too. Cleared when re-marked. */
@@ -100,8 +112,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = { blipSec: 30, resumeGapMin: 10, rev: 0 };
 
 export interface State {
-  groups: Record<Id, Group>;
-  categories: Record<Id, Category>;
+  lists: Record<Id, ListItem>;
   projects: Record<Id, Project>;
   tasks: Record<Id, Task>;
   sessions: Record<Id, Session>;
@@ -110,7 +121,7 @@ export interface State {
 }
 
 export function emptyState(): State {
-  return { groups: {}, categories: {}, projects: {}, tasks: {}, sessions: {}, settings: { ...DEFAULT_SETTINGS } };
+  return { lists: {}, projects: {}, tasks: {}, sessions: {}, settings: { ...DEFAULT_SETTINGS } };
 }
 
 export function settingsOf(state: State): Settings {
@@ -119,8 +130,7 @@ export function settingsOf(state: State): Settings {
 
 /** Entities changed by applying ops; what the server persists and broadcasts. */
 export interface Changes {
-  groups: Group[];
-  categories: Category[];
+  lists: ListItem[];
   projects: Project[];
   tasks: Task[];
   sessions: Session[];
